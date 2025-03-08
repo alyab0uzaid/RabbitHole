@@ -1,0 +1,43 @@
+.wiki-highlight {
+    background-color: yellow;
+    cursor: pointer;
+    border-bottom: 1px dotted blue;
+  }
+  
+  .wiki-tooltip {
+    background-color: white;
+    border: 1px solid #ccc;
+    box-shadow: 2px 2px 5px rgba(0,0,0,0.3);
+    padding: 10px;
+    border-radius: 4px;
+    max-width: 300px;
+    z-index: 10000;
+    font-family: Arial, sans-serif;
+    font-size: 14px;
+    line-height: 1.4;
+    display: none;
+  }
+  
+  .loading {
+    background-image: linear-gradient(
+      45deg,
+      yellow 25%,
+      #ffee99 25%,
+      #ffee99 50%,
+      yellow 50%,
+      yellow 75%,
+      #ffee99 75%,
+      #ffee99
+    );
+    background-size: 20px 20px;
+    animation: move 1s linear infinite;
+  }
+  
+  @keyframes move {
+    0% {
+      background-position: 0 0;
+    }
+    100% {
+      background-position: 20px 0;
+    }
+  }

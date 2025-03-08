@@ -1,0 +1,17 @@
+{
+    "manifest_version": 3,
+    "name": "Simple Wiki Summary",
+    "version": "1.0",
+    "description": "Highlight text and see Wikipedia summaries",
+    "permissions": ["activeTab", "storage"],
+    "action": {
+      "default_popup": "popup.html"
+    },
+    "content_scripts": [
+      {
+        "matches": ["<all_urls>"],
+        "js": ["content.js"],
+        "css": ["styles.css"]
+      }
+    ]
+  }
