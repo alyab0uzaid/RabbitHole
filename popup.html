@@ -4,26 +4,61 @@
   <meta charset="UTF-8">
   <title>RabbitHole</title>
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 </head>
 <body>
   <div class="popup-container">
-    <h1 class="title">RabbitHole</h1>
-    <div class="description">
-      <p>Highlight text on any webpage to dive into Wikipedia articles.</p>
-      <p>Follow your curiosity down the rabbit hole!</p>
+    <div class="popup-header">
+      <h1 class="title">RabbitHole</h1>
+      <p class="subtitle">Dive deeper into knowledge</p>
     </div>
-    <div class="instructions">
-      <h2>How to use:</h2>
-      <ol>
-        <li>Highlight any text on a webpage</li>
-        <li>If a Wikipedia page exists, the text will turn blue</li>
-        <li>Hover over the blue text to see a preview</li>
-        <li>Click the blue text to expand to full view</li>
-        <li>Use the tree visualization to track your journey</li>
-      </ol>
+    
+    <!-- Extension toggle -->
+    <div class="extension-toggle">
+      <label class="toggle-switch">
+        <input type="checkbox" id="extensionToggle" checked>
+        <span class="toggle-slider"></span>
+      </label>
+      <span class="toggle-label">Extension is <span id="toggleStatus">enabled</span></span>
     </div>
+    
+    <!-- Source selection toggle -->
+    <div class="extension-toggle">
+      <label class="toggle-switch">
+        <input type="checkbox" id="sourceToggle">
+        <span class="toggle-slider"></span>
+      </label>
+      <span class="toggle-label">Source: <span id="currentSource">Wikipedia</span></span>
+    </div>
+    
+    <div class="features">
+      <div class="feature">
+        <i class="fas fa-highlighter"></i>
+        <div class="feature-text">
+          <h3>Highlight Text</h3>
+          <p>Select any text to find info</p>
+        </div>
+      </div>
+      
+      <div class="feature">
+        <i class="fas fa-mouse-pointer"></i>
+        <div class="feature-text">
+          <h3>Preview Content</h3>
+          <p>Hover over links for quick info</p>
+        </div>
+      </div>
+      
+      <div class="feature">
+        <i class="fas fa-project-diagram"></i>
+        <div class="feature-text">
+          <h3>Track Your Journey</h3>
+          <p>See your exploration path</p>
+        </div>
+      </div>
+    </div>
+    
     <div class="footer">
-      <p>Made with ❤️ by RabbitHole</p>
+      <p>Made with <i class="fas fa-heart"></i> by RabbitHole</p>
     </div>
   </div>
   <script src="popup.js"></script>

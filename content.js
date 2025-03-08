@@ -1,7 +1,24 @@
+// Add at the beginning of the file
+console.log("RabbitHole: Content script starting to load");
+
 // Global variables to track state
 let wikiTree = [];
 let currentNodeId = 0;
 let isInitialized = false;
+let isEnabled = true; // Default to enabled
+
+// Add a cache for dictionary definitions
+const dictionaryCache = new Map();
+
+// Listen for messages from the popup
+chrome.runtime.onMessage.addListener(function(message, sender, sendResponse) {
+  if (message.action === "setEnabled") {
+    isEnabled = message.enabled;
+    console.log("RabbitHole extension " + (isEnabled ? "enabled" : "disabled"));
+    sendResponse({status: "success"});
+  }
+  return true; // Keep the message channel open for async response
+});
 
 // Helper function to create a unique ID for each node in the tree
 function generateNodeId() {
@@ -10,6 +27,12 @@ function generateNodeId() {
 
 // Function to fetch Wikipedia data
 async function fetchWikipediaData(term) {
+  // Don't fetch if disabled
+  if (!isEnabled) {
+    console.log("RabbitHole is disabled, not fetching data");
+    return null;
+  }
+  
   console.log("Fetching Wikipedia data for:", term);
   const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(term)}&format=json&origin=*`;
   
@@ -54,7 +77,7 @@ async function fetchWikipediaData(term) {
 }
 
 // Function to create and show the popup
-function createPopup(data, position, isTreeNode = false, nodeId = null) {
+function createPopup(data, position, isTreeNode = false, nodeId = null, sourceElement = null) {
   // Remove any existing popups
   removePopups();
   
@@ -66,40 +89,159 @@ function createPopup(data, position, isTreeNode = false, nodeId = null) {
   popup.style.top = `${position.y}px`;
   popup.style.zIndex = '10000';
   
-  // Create the content
-  let popupContent = `
-    <div class="rabbithole-header">
-      <h3>${data.title}</h3>
-      <button class="rabbithole-expand-btn">Expand</button>
-      <button class="rabbithole-close-btn">×</button>
-    </div>
-    <div class="rabbithole-content">
-  `;
-  
-  // Add thumbnail if available
-  if (data.thumbnail) {
-    popupContent += `<img src="${data.thumbnail}" alt="${data.title}" class="rabbithole-thumbnail">`;
+  // Store reference to the source element
+  if (sourceElement) {
+    popup.dataset.sourceElementId = Date.now() + Math.random().toString(36).substring(2, 9);
+    sourceElement.dataset.popupId = popup.dataset.sourceElementId;
   }
   
-  // Add extract
-  popupContent += `
-      <p>${data.extract.substring(0, 200)}${data.extract.length > 200 ? '...' : ''}</p>
-    </div>
-  `;
-  
-  popup.innerHTML = popupContent;
+  // Different layout for Dictionary vs Wikipedia
+  if (window.selectedSource === 'Dictionary') {
+    // Dictionary layout (no image)
+    let popupContent = `
+      <div class="popup-modern popup-dictionary">
+        <div class="popup-header-bar">
+          <h2 class="popup-title">${data.title}</h2>
+          <div class="popup-dropdown">
+            <div class="dropdown-button">
+              <span class="dropdown-source-icon dictionary-icon"></span>
+              <span class="dropdown-label">Dictionary</span>
+            </div>
+            <div class="dropdown-content">
+              <div class="dropdown-item" data-source="Wikipedia">
+                <span class="dropdown-source-icon wikipedia-icon"></span>
+                <span>Wikipedia</span>
+              </div>
+              <div class="dropdown-item active" data-source="Dictionary">
+                <span class="dropdown-source-icon dictionary-icon"></span>
+                <span>Dictionary</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="popup-layout dictionary-layout">
+          <div class="popup-content full-width">
+            <div class="popup-definition">
+              <p class="popup-summary">${data.extract}</p>
+            </div>
+            <a href="${data.url}" target="_blank" class="popup-link">View on Dictionary.com</a>
+          </div>
+        </div>
+      </div>
+    `;
+    popup.innerHTML = popupContent;
+  } else {
+    // Wikipedia layout (with image)
+    let popupContent = `
+      <div class="popup-modern">
+        <div class="popup-header-bar">
+          <h2 class="popup-title">${data.title}</h2>
+          <div class="popup-dropdown">
+            <div class="dropdown-button">
+              <span class="dropdown-source-icon wikipedia-icon"></span>
+              <span class="dropdown-label">Wikipedia</span>
+            </div>
+            <div class="dropdown-content">
+              <div class="dropdown-item active" data-source="Wikipedia">
+                <span class="dropdown-source-icon wikipedia-icon"></span>
+                <span>Wikipedia</span>
+              </div>
+              <div class="dropdown-item" data-source="Dictionary">
+                <span class="dropdown-source-icon dictionary-icon"></span>
+                <span>Dictionary</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="popup-layout ${!data.thumbnail ? 'no-image' : ''}">
+          ${data.thumbnail ? `
+            <div class="popup-image-container">
+              <img src="${data.thumbnail}" alt="${data.title}" class="popup-thumbnail">
+            </div>
+          ` : ''}
+          <div class="popup-content">
+            <p class="popup-summary">${data.extract.substring(0, 150)}${data.extract.length > 150 ? '...' : ''}</p>
+            <a href="https://en.wikipedia.org/wiki/${encodeURIComponent(data.title)}" target="_blank" class="popup-link">View on Wikipedia</a>
+          </div>
+        </div>
+      </div>
+    `;
+    popup.innerHTML = popupContent;
+  }
   
   // Add event listeners
-  popup.querySelector('.rabbithole-close-btn').addEventListener('click', function() {
-    popup.remove();
+  
+  // Dropdown functionality
+  const dropdownButton = popup.querySelector('.dropdown-button');
+  const dropdownContent = popup.querySelector('.dropdown-content');
+  
+  dropdownButton.addEventListener('click', function(e) {
+    e.stopPropagation();
+    dropdownContent.classList.toggle('show');
   });
   
-  popup.querySelector('.rabbithole-expand-btn').addEventListener('click', function() {
-    // Remove the popup
+  // Source selection
+  const dropdownItems = popup.querySelectorAll('.dropdown-item');
+  dropdownItems.forEach(item => {
+    item.addEventListener('click', async function(e) {
+      e.stopPropagation();
+      
+      const newSource = this.dataset.source;
+      console.log("Changing source in popup to:", newSource);
+      
+      // Update UI
+      dropdownItems.forEach(i => i.classList.remove('active'));
+      this.classList.add('active');
+      
+      // Update dropdown button
+      const buttonIcon = dropdownButton.querySelector('.dropdown-source-icon');
+      const buttonLabel = dropdownButton.querySelector('.dropdown-label');
+      buttonIcon.className = `dropdown-source-icon ${newSource.toLowerCase()}-icon`;
+      buttonLabel.textContent = newSource;
+      
+      // Hide dropdown
+      dropdownContent.classList.remove('show');
+      
+      // Save the setting
+      window.selectedSource = newSource;
+      chrome.storage.sync.set({ 'selectedSource': newSource });
+      
+      // Fetch new data for the current term
+      const newData = await fetchData(data.title);
+      if (newData) {
+        // Remove current popup
+        popup.remove();
+        
+        // Create new popup with updated data
+        createPopup(newData, position, isTreeNode, nodeId, sourceElement);
+      }
+    });
+  });
+  
+  // Make the title clickable to expand
+  popup.querySelector('.popup-title').addEventListener('click', function() {
     popup.remove();
-    
-    // Create the expanded modal
     createExpandedModal(data, isTreeNode ? nodeId : null);
+  });
+  
+  // Prevent popup from disappearing when mouse is over it
+  popup.addEventListener('mouseenter', function() {
+    this.dataset.isHovered = 'true';
+  });
+  
+  popup.addEventListener('mouseleave', function() {
+    this.dataset.isHovered = 'false';
+    
+    // Check if the original source element is still being hovered
+    let sourceStillHovered = false;
+    if (sourceElement && sourceElement.matches(':hover')) {
+      sourceStillHovered = true;
+    }
+    
+    // Only remove if neither the popup nor the source are hovered
+    if (!sourceStillHovered) {
+      removePopups();
+    }
   });
   
   // Add to the DOM
@@ -108,10 +250,35 @@ function createPopup(data, position, isTreeNode = false, nodeId = null) {
   return popup;
 }
 
+
 // Function to remove all popups
 function removePopups() {
+  // Get all popups
   const popups = document.querySelectorAll('.rabbithole-popup');
-  popups.forEach(popup => popup.remove());
+  
+  popups.forEach(popup => {
+    // Only remove the popup if it's not being hovered
+    if (popup.dataset.isHovered !== 'true') {
+      // Check if the source element is being hovered
+      let sourceId = popup.dataset.sourceElementId;
+      let sourceElement = sourceId ? document.querySelector(`[data-popup-id="${sourceId}"]`) : null;
+      
+      if (sourceElement && sourceElement.matches(':hover')) {
+        // Source element is hovered, don't remove popup
+        return;
+      }
+      
+      // Add the fadeout animation class
+      popup.classList.add('rabbithole-popup-fadeout');
+      
+      // Remove the popup after animation completes
+      setTimeout(() => {
+        if (document.body.contains(popup)) {
+          popup.remove();
+        }
+      }, 300); // Match the animation duration
+    }
+  });
 }
 
 // Function to create and show the expanded modal
@@ -201,11 +368,6 @@ function createExpandedModal(data, nodeId = null) {
   // Add to the DOM
   document.body.appendChild(container);
   
-  // Add event listeners
-  container.querySelector('.rabbithole-modal-close-btn').addEventListener('click', function() {
-    container.remove();
-  });
-  
   // Process the tree visualization links with a delay to ensure DOM is ready
   setTimeout(() => {
     console.log("Setting up tree node click handlers");
@@ -223,7 +385,7 @@ function createExpandedModal(data, nodeId = null) {
         console.log("Tree node clicked:", nodeInfo?.title);
         
         if (nodeInfo) {
-          const data = await fetchWikipediaData(nodeInfo.title);
+          const data = await fetchData(nodeInfo.title);
           if (data) {
             // Remove the current container
             container.remove();
@@ -235,8 +397,13 @@ function createExpandedModal(data, nodeId = null) {
     });
   }, 200);
   
-  // Fetch the full article
-  fetchFullArticle(data.title, container.querySelector('.rabbithole-article-content'));
+  // Fetch the full article and process its content
+  processArticleContent(data.title, container.querySelector('.rabbithole-article-content'));
+  
+  // Add back the close button event listener for the modal
+  container.querySelector('.rabbithole-modal-close-btn').addEventListener('click', function() {
+    container.remove();
+  });
   
   return container;
 }
@@ -327,152 +494,172 @@ function generateTreeHTML() {
 
 // Function to fetch the full article
 async function fetchFullArticle(title, container) {
-  console.log("Fetching full article for:", title);
-  const url = `https://en.wikipedia.org/w/api.php?action=parse&page=${encodeURIComponent(title)}&prop=text&format=json&origin=*`;
+  // Don't fetch if disabled
+  if (!isEnabled) {
+    console.log("RabbitHole is disabled, not fetching article");
+    return null;
+  }
+
+  console.log("Fetching full article for:", title, "Source:", window.selectedSource);
   
-  try {
-    // Show loading animation
+  // Add loading indicator
+  if (container) {
     container.innerHTML = `
       <div class="rabbithole-loading">
         <div class="loading-spinner"></div>
-        <p>Loading Wikipedia article...</p>
+        <p>Loading article...</p>
       </div>
     `;
-    
-    const response = await fetch(url);
-    const data = await response.json();
-    
-    if (data.parse && data.parse.text) {
-      console.log("Article content received");
-      // Create a temporary element to parse the HTML
-      const tempElement = document.createElement('div');
-      tempElement.innerHTML = data.parse.text['*'];
+  }
+  
+  try {
+    if (window.selectedSource === 'Wikipedia') {
+      // Fetch from Wikipedia's API to get the HTML content
+      const url = `https://en.wikipedia.org/w/api.php?action=parse&page=${encodeURIComponent(title)}&prop=text&format=json&origin=*`;
+      const response = await fetch(url);
+      const data = await response.json();
       
-      // Remove unwanted elements
-      const unwantedSelectors = [
-        '.mw-editsection',
-        '.reference',
-        '.error',
-        '.noprint',
-        'script',
-        'style',
-        '.mw-empty-elt',
-        '.mw-jump-link',
-        '.mw-references-wrap',
-        '#References',
-        '#External_links',
-        '.hatnote',
-        '.navbar'
-      ];
-      
-      unwantedSelectors.forEach(selector => {
-        const elements = tempElement.querySelectorAll(selector);
-        elements.forEach(el => el.remove());
-      });
-      
-      // Fix image URLs
-      const images = tempElement.querySelectorAll('img');
-      images.forEach(img => {
-        if (img.src && img.src.startsWith('//')) {
-          img.src = 'https:' + img.src;
+      if (!data || !data.parse || !data.parse.text || !data.parse.text['*']) {
+        if (container) {
+          container.innerHTML = `
+            <div class="rabbithole-error">
+              <p>Couldn't load the full article.</p>
+              <a href="https://en.wikipedia.org/wiki/${encodeURIComponent(title)}" target="_blank" rel="noopener noreferrer">
+                View on Wikipedia instead
+              </a>
+            </div>
+          `;
         }
-        // Add loading="lazy" attribute
-        img.setAttribute('loading', 'lazy');
-        // Add a nice transition effect
-        img.style.transition = 'opacity 0.3s ease';
-        img.style.opacity = '0';
-        img.onload = function() {
-          this.style.opacity = '1';
-        };
-      });
+        return null;
+      }
       
-      // Enhance tables
-      const tables = tempElement.querySelectorAll('table');
-      tables.forEach(table => {
-        table.classList.add('rabbithole-table');
-        table.style.width = '100%';
-        table.style.borderCollapse = 'collapse';
-        table.style.margin = '20px 0';
-        table.style.border = '1px solid #e5e7eb';
-      });
-      
-      // Enhance links with colors
-      const internalLinks = tempElement.querySelectorAll('a[href^="/wiki/"]');
-      internalLinks.forEach(link => {
-        link.style.color = '#0550ae';
-      });
-      
-      // Fix infobox styling
-      const infoboxes = tempElement.querySelectorAll('.infobox');
-      infoboxes.forEach(infobox => {
-        infobox.style.float = 'right';
-        infobox.style.margin = '0 0 20px 20px';
-        infobox.style.maxWidth = '300px';
-        infobox.style.border = '1px solid #eee';
-        infobox.style.borderRadius = '8px';
-        infobox.style.overflow = 'hidden';
-        infobox.style.backgroundColor = '#f8f9fa';
-      });
-      
-      // Process the content to make internal links work with our system
-      processWikiLinks(tempElement);
-      
-      // Set the content
-      container.innerHTML = '';
-      
-      // Add a "View on Wikipedia" link at the top
-      const wikiLink = document.createElement('div');
-      wikiLink.className = 'rabbithole-wiki-link';
-      wikiLink.innerHTML = `<a href="https://en.wikipedia.org/wiki/${encodeURIComponent(title)}" target="_blank" rel="noopener noreferrer">
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-          <path d="M8 0C3.58 0 0 3.58 0 8c0 4.42 3.58 8 8 8s8-3.58 8-8c0-4.42-3.58-8-8-8zm0 7.8L5.67 4.83l-.66.67L8 8.2l2.99-2.7-.66-.67L8 7.8z"/>
-        </svg>
-        View this article on Wikipedia
-      </a>`;
-      container.appendChild(wikiLink);
-      
-      // Add the article content
-      container.appendChild(tempElement);
-      
-      // Add smooth scroll behavior
-      container.style.scrollBehavior = 'smooth';
-      
-      // Improve paragraph spacing
-      const paragraphs = container.querySelectorAll('p');
-      paragraphs.forEach(p => {
-        p.style.marginBottom = '16px';
-        p.style.lineHeight = '1.7';
-      });
-      
-      // Enhance headings
-      const headings = container.querySelectorAll('h1, h2, h3, h4, h5, h6');
-      headings.forEach(heading => {
-        heading.style.color = '#0550ae';
-        heading.style.fontWeight = '600';
-        heading.style.marginTop = '24px';
-        heading.style.marginBottom = '16px';
-      });
-    } else {
-      console.error("Failed to load article:", data);
+      console.log("Full article data received for:", title);
+      return data.parse.text['*'];
+    } 
+    else if (window.selectedSource === 'Dictionary') {
+      // For Dictionary, we'll fetch more comprehensive data if possible
+      try {
+        const url = `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(title)}`;
+        const response = await fetch(url);
+        const data = await response.json();
+        
+        if (!data || !data.length) {
+          if (container) {
+            container.innerHTML = `
+              <div class="rabbithole-error">
+                <p>No detailed definition available.</p>
+                <a href="https://www.dictionary.com/browse/${encodeURIComponent(title)}" target="_blank" rel="noopener noreferrer">
+                  View on Dictionary.com instead
+                </a>
+              </div>
+            `;
+          }
+          return null;
+        }
+        
+        // Format comprehensive dictionary data
+        let html = `<div class="dictionary-entry">`;
+        
+        // Add phonetics if available
+        if (data[0].phonetics && data[0].phonetics.length > 0 && data[0].phonetics[0].text) {
+          html += `<p class="phonetic">${data[0].phonetics[0].text}</p>`;
+        }
+        
+        // Add audio if available
+        if (data[0].phonetics && data[0].phonetics.length > 0 && data[0].phonetics[0].audio) {
+          html += `
+            <div class="audio-section">
+              <audio controls>
+                <source src="${data[0].phonetics[0].audio}" type="audio/mpeg">
+                Your browser does not support the audio element.
+              </audio>
+            </div>
+          `;
+        }
+        
+        // Process all meanings
+        data[0].meanings.forEach(meaning => {
+          html += `
+            <div class="meaning">
+              <h3 class="part-of-speech">${meaning.partOfSpeech}</h3>
+              <ol class="definitions">
+          `;
+          
+          meaning.definitions.forEach(def => {
+            html += `<li>
+              <p class="definition">${def.definition}</p>
+            `;
+            
+            if (def.example) {
+              html += `<p class="example">"${def.example}"</p>`;
+            }
+            
+            html += `</li>`;
+          });
+          
+          html += `</ol>`;
+          
+          // Add synonyms if available
+          if (meaning.synonyms && meaning.synonyms.length > 0) {
+            html += `
+              <div class="synonyms">
+                <h4>Synonyms:</h4>
+                <p>${meaning.synonyms.join(', ')}</p>
+              </div>
+            `;
+          }
+          
+          // Add antonyms if available
+          if (meaning.antonyms && meaning.antonyms.length > 0) {
+            html += `
+              <div class="antonyms">
+                <h4>Antonyms:</h4>
+                <p>${meaning.antonyms.join(', ')}</p>
+              </div>
+            `;
+          }
+          
+          html += `</div>`;
+        });
+        
+        html += `</div>`;
+        return html;
+      } catch (error) {
+        console.error("Error fetching detailed dictionary data:", error);
+        // Fall back to basic definition
+        if (container) {
+          const modalBody = container.closest('.rabbithole-modal-body');
+          if (modalBody) {
+            const basicDefinition = modalBody.querySelector('p')?.textContent || "No definition available.";
+            return `
+              <div class="dictionary-entry">
+                <p class="definition">${basicDefinition}</p>
+                <a href="https://www.dictionary.com/browse/${encodeURIComponent(title)}" target="_blank" rel="noopener noreferrer">
+                  View more on Dictionary.com
+                </a>
+              </div>
+            `;
+          }
+        }
+        return null;
+      }
+    }
+  } catch (error) {
+    console.error("Error fetching full article:", error);
+    if (container) {
       container.innerHTML = `
         <div class="rabbithole-error">
-          <p>Failed to load the article.</p>
-          <a href="https://en.wikipedia.org/wiki/${encodeURIComponent(title)}" target="_blank" rel="noopener noreferrer">
-            Try viewing directly on Wikipedia
+          <p>Error loading article: ${error.message}</p>
+          <a href="${window.selectedSource === 'Wikipedia' 
+              ? `https://en.wikipedia.org/wiki/${encodeURIComponent(title)}`
+              : `https://www.dictionary.com/browse/${encodeURIComponent(title)}`}" 
+            target="_blank" rel="noopener noreferrer">
+            View on ${window.selectedSource} instead
           </a>
         </div>
       `;
     }
-  } catch (error) {
-    console.error('Error fetching full article:', error);
-    container.innerHTML = `
-      <div class="rabbithole-error">
-        <p>Error loading the article: ${error.message}</p>
-        <a href="https://en.wikipedia.org/wiki/${encodeURIComponent(title)}" target="_blank" rel="noopener noreferrer">
-          Try viewing directly on Wikipedia
-        </a>
-      </div>
-    `;
+    return null;
   }
 }
 
@@ -487,142 +674,241 @@ function processWikiLinks(element) {
       console.log(`Found ${links.length} links to process`);
       
       links.forEach((link, index) => {
-        // Store the original href for reference
-        const originalHref = link.getAttribute('href');
-        
-        if (!originalHref) return;
-        
-        // Check if it's an internal Wikipedia link
-        if (originalHref.startsWith('/wiki/') || originalHref.includes('wikipedia.org/wiki/')) {
-          console.log(`Processing wiki link ${index}: ${originalHref}`);
+        try {
+          // Store the original href for reference
+          const originalHref = link.getAttribute('href');
           
-          // Extract the title from the link
-          let title = '';
-          if (originalHref.startsWith('/wiki/')) {
-            title = decodeURIComponent(originalHref.substring(6)); // Remove '/wiki/'
-          } else {
-            const parts = originalHref.split('/wiki/');
-            title = decodeURIComponent(parts[parts.length - 1]);
-          }
+          if (!originalHref) return;
           
-          // Replace spaces with spaces (underscores are in URLs)
-          title = title.replace(/_/g, ' ');
-          
-          // Remove any anchor parts (#section)
-          title = title.split('#')[0];
-          
-          // Skip certain special pages
-          if (title.startsWith('File:') || 
-              title.startsWith('Special:') || 
-              title.startsWith('Help:') || 
-              title.startsWith('Category:') ||
-              title.startsWith('Talk:') ||
-              title.startsWith('Wikipedia:')) {
-            console.log(`Skipping special wiki page: ${title}`);
-            // Open in new tab for special pages
-            link.setAttribute('target', '_blank');
-            link.setAttribute('rel', 'noopener noreferrer');
-            return;
-          }
-          
-          console.log(`Wiki link title: ${title}`);
-          
-          // Store title as a data attribute
-          link.setAttribute('data-wiki-title', title);
-          
-          // Completely replace the href to prevent default navigation
-          const originalURL = link.href;
-          link.setAttribute('href', 'javascript:void(0)');
-          
-          // Store original URL for backup access
-          link.setAttribute('data-original-url', originalURL);
-          
-          // Add styling
-          link.classList.add('rabbithole-wiki-internal-link');
-          
-          // Remove any existing click handlers
-          const newLink = link.cloneNode(true);
-          link.parentNode.replaceChild(newLink, link);
-          link = newLink;
-          
-          // Add click event handler
-          link.addEventListener('click', async function(e) {
-            console.log("Wiki link clicked:", this.getAttribute('data-wiki-title'));
-            e.preventDefault();
-            e.stopPropagation();
+          // Check if it's an internal Wikipedia link
+          if ((originalHref.startsWith('/wiki/') || originalHref.includes('wikipedia.org/wiki/')) && 
+              // Exclude special pages, references, anchors, etc.
+              !originalHref.includes('#cite_note') && 
+              !originalHref.includes('#cite_ref') &&
+              !originalHref.match(/\/wiki\/(File|Special|Help|Category|Talk|Template|Wikipedia):/i)) {
             
-            const title = this.getAttribute('data-wiki-title');
-            if (!title) {
-              console.error("No title found in data attribute");
-              return;
+            console.log(`Processing wiki article link ${index}: ${originalHref}`);
+            
+            // Extract the title from the link
+            let title = '';
+            if (originalHref.startsWith('/wiki/')) {
+              title = decodeURIComponent(originalHref.substring(6)); // Remove '/wiki/'
+            } else {
+              const parts = originalHref.split('/wiki/');
+              title = decodeURIComponent(parts[parts.length - 1]);
             }
             
-            // Show a loading indicator in the link
-            const originalText = this.innerHTML;
-            this.innerHTML = `<span class="link-loading">Loading...</span>`;
+            // Replace spaces with spaces (underscores are in URLs)
+            title = title.replace(/_/g, ' ');
             
-            try {
-              const data = await fetchWikipediaData(title);
-              // Restore original text
-              this.innerHTML = originalText;
+            // Remove any anchor parts (#section)
+            title = title.split('#')[0];
+            
+            console.log(`Wiki link title: ${title}`);
+            
+            // Store title as a data attribute
+            link.setAttribute('data-wiki-title', title);
+            
+            // Completely replace the href to prevent default navigation
+            const originalURL = link.href;
+            link.setAttribute('href', 'javascript:void(0)');
+            
+            // Store original URL for backup access
+            link.setAttribute('data-original-url', originalURL);
+            
+            // Create a clean version of the link to avoid existing event handlers
+            const newLink = link.cloneNode(true);
+            if (link.parentNode) {
+              link.parentNode.replaceChild(newLink, link);
+              link = newLink;
+            }
+            
+            // Now style the link to match highlighted links
+            link.className = 'rabbithole-link';
+            link.style.color = '#3a5ccc'; // explicit primary color
+            link.style.textDecoration = 'underline';
+            link.style.cursor = 'pointer';
+            link.style.backgroundColor = 'rgba(58, 92, 204, 0.08)';
+            link.style.borderRadius = '3px';
+            link.style.padding = '0 3px';
+            link.style.transition = 'all 0.2s ease';
+            
+            // Add hover effects
+            link.addEventListener('mouseenter', function() {
+              this.style.backgroundColor = 'rgba(58, 92, 204, 0.15)';
+            });
+            
+            link.addEventListener('mouseleave', function() {
+              this.style.backgroundColor = 'rgba(58, 92, 204, 0.08)';
+            });
+            
+            // Add hover tooltip event
+            link.addEventListener('mouseenter', function(e) {
+              const title = this.getAttribute('data-wiki-title');
+              if (!title) return;
               
-              if (data) {
-                // Create new modal with the data
-                createExpandedModal(data);
-              } else {
-                console.error("No data returned for:", title);
-                // Fallback to original URL if fetch fails
-                window.open(this.getAttribute('data-original-url'), '_blank');
+              // Don't fetch if extension is disabled
+              if (!isEnabled) return;
+              
+              // Clear any existing timeout
+              if (this.hoverTimeout) {
+                clearTimeout(this.hoverTimeout);
               }
-            } catch (error) {
-              console.error("Error processing wiki link click:", error);
-              // Restore original text
-              this.innerHTML = originalText;
-              // Fallback to original URL if error
-              window.open(this.getAttribute('data-original-url'), '_blank');
-            }
-          });
-          
-          // Add hover tooltip event
-          link.addEventListener('mouseenter', function(e) {
-            const title = this.getAttribute('data-wiki-title');
-            if (!title) return;
+              
+              // Skip if there's already a popup
+              const existingPopup = document.querySelector('.rabbithole-popup');
+              if (existingPopup) return;
+              
+              // Set timeout to prevent too many requests on quick mouse movements
+              this.hoverTimeout = setTimeout(async () => {
+                const rect = this.getBoundingClientRect();
+                const position = {
+                  x: rect.left + window.scrollX,
+                  y: rect.bottom + window.scrollY
+                };
+                
+                try {
+                  const data = await fetchData(title);
+                  if (data) {
+                    createPopup(data, position, false, null, this);
+                  }
+                } catch (error) {
+                  console.error("Error showing hover preview:", error);
+                }
+              }, 300);
+            });
             
-            // Don't fetch if we're already showing a popup
-            const existingPopup = document.querySelector('.rabbithole-popup');
-            if (existingPopup) return;
+            // Add explicit mouseleave event to remove popup
+            link.addEventListener('mouseleave', function() {
+              if (this.hoverTimeout) {
+                clearTimeout(this.hoverTimeout);
+                this.hoverTimeout = null;
+              }
+              removePopups();
+            });
             
-            // Set timeout to prevent too many requests on quick mouse movements
-            this.hoverTimeout = setTimeout(async () => {
-              const rect = this.getBoundingClientRect();
-              const position = {
-                x: rect.left + window.scrollX,
-                y: rect.bottom + window.scrollY
-              };
+            // Add click event handler
+            link.addEventListener('click', async function(e) {
+              console.log("Wiki link clicked:", this.getAttribute('data-wiki-title'));
+              e.preventDefault();
+              e.stopPropagation();
+              
+              const title = this.getAttribute('data-wiki-title');
+              if (!title) {
+                console.error("No title found in data attribute");
+                return;
+              }
+              
+              // Show a loading indicator in the link
+              const originalText = this.innerHTML;
+              this.innerHTML = `<span class="link-loading">Loading...</span>`;
               
               try {
-                const data = await fetchWikipediaData(title);
+                console.log("Wiki link clicked, fetching data for:", title);
+                const data = await fetchData(title);
+                // Restore original text
+                this.innerHTML = originalText;
+                
                 if (data) {
-                  createPopup(data, position);
+                  console.log("Wiki link data retrieved, opening modal");
+                  // Create new modal with the data
+                  createExpandedModal(data);
+                } else {
+                  console.error("No data returned for:", title);
+                  // Fallback to original URL if fetch fails
+                  window.open(this.getAttribute('data-original-url'), '_blank');
                 }
               } catch (error) {
-                console.error("Error showing hover preview:", error);
+                console.error("Error processing wiki link click:", error);
+                // Restore original text
+                this.innerHTML = originalText;
+                // Fallback to original URL if error
+                window.open(this.getAttribute('data-original-url'), '_blank');
               }
-            }, 300);
-          });
-          
-          // Clear timeout if mouse leaves before the delay
-          link.addEventListener('mouseleave', function() {
-            if (this.hoverTimeout) {
-              clearTimeout(this.hoverTimeout);
-              this.hoverTimeout = null;
+            });
+          } 
+          // Handle reference/citation links
+          else if (originalHref.includes('#cite_') || 
+                   originalHref.match(/\/wiki\/(File|Special|Help|Category|Talk|Template|Wikipedia):/i)) {
+            
+            console.log(`Processing special wiki link: ${originalHref}`);
+            
+            // Make it open in Wikipedia directly
+            const baseUrl = 'https://en.wikipedia.org';
+            let fullUrl;
+            
+            if (originalHref.startsWith('/')) {
+              fullUrl = baseUrl + originalHref;
+            } else if (originalHref.includes('wikipedia.org')) {
+              fullUrl = originalHref;
+            } else {
+              // Handle relative URLs that don't start with slash
+              fullUrl = baseUrl + '/' + originalHref;
             }
-          });
-          
-        } else if (link.href && !link.href.startsWith('javascript:')) {
-          // For external links, open in a new tab
-          link.setAttribute('target', '_blank');
-          link.setAttribute('rel', 'noopener noreferrer');
+            
+            link.setAttribute('href', fullUrl);
+            link.setAttribute('target', '_blank');
+            link.setAttribute('rel', 'noopener noreferrer');
+            link.classList.add('rabbithole-special-link');
+          }
+          // Handle external links (non-Wikipedia)
+          else if (link.href && !link.href.startsWith('javascript:')) {
+            // Check if this might be an incorrectly formed internal link (like NASA.com/wiki/...)
+            if (originalHref.includes('/wiki/') && !originalHref.includes('wikipedia.org')) {
+              console.log(`Fixing malformed wiki link: ${originalHref}`);
+              
+              // This is likely a site-specific wiki link that should go to Wikipedia
+              const wikiPart = originalHref.substring(originalHref.indexOf('/wiki/') + 6);
+              const title = decodeURIComponent(wikiPart).replace(/_/g, ' ').split('#')[0];
+              
+              // Store the original link info
+              link.setAttribute('data-original-url', link.href);
+              link.setAttribute('data-wiki-title', title);
+              
+              // Replace the href to prevent navigation
+              link.setAttribute('href', 'javascript:void(0)');
+              
+              // Add styling
+              link.classList.add('rabbithole-link');
+              link.classList.add('rabbithole-fixed-link');
+              
+              // Add click handler that attempts to find the Wikipedia article
+              link.addEventListener('click', async function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                const title = this.getAttribute('data-wiki-title');
+                if (!title) return;
+                
+                // Show loading state
+                const originalText = this.innerHTML;
+                this.innerHTML = `<span class="link-loading">Loading...</span>`;
+                
+                try {
+                  const data = await fetchData(title);
+                  // Restore original text
+                  this.innerHTML = originalText;
+                  
+                  if (data) {
+                    createExpandedModal(data);
+                  } else {
+                    // If no Wikipedia data, open the original URL
+                    window.open(this.getAttribute('data-original-url'), '_blank');
+                  }
+                } catch (error) {
+                  console.error("Error with fixed link:", error);
+                  this.innerHTML = originalText;
+                  window.open(this.getAttribute('data-original-url'), '_blank');
+                }
+              });
+            } else {
+              // Regular external link
+              link.setAttribute('target', '_blank');
+              link.setAttribute('rel', 'noopener noreferrer');
+            }
+          }
+        } catch (error) {
+          console.error("Error processing individual link:", error);
         }
       });
       
@@ -643,8 +929,18 @@ function initRabbitHole() {
   console.log("Initializing RabbitHole extension...");
   isInitialized = true;
   
+  // Check if the extension is enabled in storage
+  chrome.storage.sync.get('rabbitHoleEnabled', function(data) {
+    // Default to enabled if setting doesn't exist
+    isEnabled = data.rabbitHoleEnabled !== undefined ? data.rabbitHoleEnabled : true;
+    console.log("RabbitHole extension is " + (isEnabled ? "enabled" : "disabled") + " on initialization");
+  });
+  
   // Listen for text selection
   document.addEventListener('mouseup', async function(e) {
+    // Don't process if extension is disabled
+    if (!isEnabled) return;
+    
     // Wait a small delay to ensure the selection is complete
     setTimeout(async () => {
       const selection = window.getSelection();
@@ -670,10 +966,9 @@ function initRabbitHole() {
             x: rect.left + window.scrollX,
             y: rect.bottom + window.scrollY + 10
           };
-          
-          console.log("Fetching Wikipedia data...");
-          // Fetch Wikipedia data for the selected text
-          const data = await fetchWikipediaData(selectedText);
+          console.log("Fetching data...");
+          // Fetch data for the selected text from the active source
+          const data = await fetchData(selectedText);
           
           if (data) {
             console.log("Wikipedia data found, creating wrapper");
@@ -681,9 +976,24 @@ function initRabbitHole() {
             const wrapper = document.createElement('span');
             wrapper.className = 'rabbithole-link';
             wrapper.textContent = selectedText;
-            wrapper.style.color = 'blue';
+            
+            // Apply explicit styling
+            wrapper.style.color = '#3a5ccc'; // explicit primary color
             wrapper.style.textDecoration = 'underline';
             wrapper.style.cursor = 'pointer';
+            wrapper.style.backgroundColor = 'rgba(58, 92, 204, 0.08)';
+            wrapper.style.borderRadius = '3px';
+            wrapper.style.padding = '0 3px';
+            wrapper.style.transition = 'all 0.2s ease';
+            
+            // Add hover effects
+            wrapper.addEventListener('mouseenter', function() {
+              this.style.backgroundColor = 'rgba(58, 92, 204, 0.15)';
+            });
+            
+            wrapper.addEventListener('mouseleave', function() {
+              this.style.backgroundColor = 'rgba(58, 92, 204, 0.08)';
+            });
             
             // Replace the selected text with the wrapper span
             range.deleteContents();
@@ -691,20 +1001,29 @@ function initRabbitHole() {
             
             // Add hover event to show popup
             wrapper.addEventListener('mouseenter', function(e) {
+              // Don't show popup if disabled
+              if (!isEnabled) return;
+              
               const rect = wrapper.getBoundingClientRect();
               const position = {
                 x: rect.left + window.scrollX,
                 y: rect.bottom + window.scrollY
               };
               
-              createPopup(data, position);
+              // Create the popup but don't automatically schedule its removal
+              // The popup itself will handle mouse enter/leave events
+              const popup = createPopup(data, position, false, null, this);
             });
-            
-            // Add click event to show expanded modal
+
+            // Make sure the click event is properly set up
             wrapper.addEventListener('click', function(e) {
+              // Don't show modal if disabled
+              if (!isEnabled) return;
+              
               e.preventDefault();
               e.stopPropagation();
               
+              console.log("Link clicked, creating modal");
               createExpandedModal(data);
             });
           } else {
@@ -732,3 +1051,212 @@ document.addEventListener('DOMContentLoaded', initRabbitHole);
 setTimeout(initRabbitHole, 1000);
 
 console.log("RabbitHole content script loaded");
+
+// Add at the end of the file to ensure script is running
+// Make sure it's loaded
+setTimeout(() => {
+  console.log("RabbitHole: Delayed check - content script loaded and running");
+  const styles = window.getComputedStyle(document.documentElement);
+  const primaryColor = styles.getPropertyValue('--primary-color').trim();
+  console.log("RabbitHole: CSS Variable check - primary color is", primaryColor);
+}, 2000);
+
+
+chrome.storage.sync.get(['rabbitHoleEnabled', 'selectedSource'], function(data) {
+  if (data.rabbitHoleEnabled === false) return;
+  window.selectedSource = data.selectedSource || 'Wikipedia';
+  initRabbitHole();
+});
+
+chrome.storage.onChanged.addListener(function(changes) {
+  if ('rabbitHoleEnabled' in changes) {
+    location.reload();
+  }
+  if ('selectedSource' in changes) {
+    window.selectedSource = changes.selectedSource.newValue;
+  }
+});
+
+async function fetchData(term) {
+  console.log('Selected Source: ' + window.selectedSource);
+  if (window.selectedSource === 'Wikipedia') {
+    return fetchWikipediaData(term);
+  } else {
+      /*title: term,
+      extract: "Click to view the definition on the dictionary website.",
+      thumbnail: null,
+      url: `https://www.dictionary.com/browse/${encodeURIComponent(term)}`
+      */
+      return fetchDictionaryData(term);
+  }
+}
+
+
+async function fetchDictionaryData(term) {
+  // Check cache first
+  const cacheKey = term.toLowerCase();
+  if (dictionaryCache.has(cacheKey)) {
+    console.log("Using cached dictionary data for:", term);
+    return dictionaryCache.get(cacheKey);
+  }
+
+  console.log("Fetching dictionary data for:", term);
+  const url = `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(term)}`;
+  try {
+    const response = await fetch(url);
+    const data = await response.json();
+    if (!data || !data.length) return null;
+    
+    // Create consistent data object
+    const result = {
+      title: term,
+      extract: data[0].meanings[0].definitions[0].definition || "No definition available",
+      thumbnail: null,
+      pageId: term,
+      url: `https://www.dictionary.com/browse/${encodeURIComponent(term)}`
+    };
+    
+    // Cache the result
+    dictionaryCache.set(cacheKey, result);
+    
+    return result;
+  } catch (error) {
+    console.error('Error fetching dictionary data:', error);
+    return null;
+  }
+}
+
+// Update the processArticleContent function to properly display the content
+async function processArticleContent(title, container) {
+  console.log("Processing article content for:", title);
+  const html = await fetchFullArticle(title, container);
+  
+  if (!html) return;
+  
+  // Create a temporary element to parse the HTML
+  const tempElement = document.createElement('div');
+  tempElement.innerHTML = html;
+  
+  if (window.selectedSource === 'Wikipedia') {
+    // Wikipedia-specific processing
+    
+    // Remove unwanted elements
+    const unwanted = tempElement.querySelectorAll('.mw-editsection, #coordinates, .error, .mw-empty-elt');
+    unwanted.forEach(el => el.remove());
+    
+    // Fix image URLs
+    const images = tempElement.querySelectorAll('img');
+    const processedImages = new Set(); // Track processed images to avoid duplicates
+    
+    images.forEach(img => {
+      if (img.src) {
+        // Skip if we've already processed an image with this src
+        if (processedImages.has(img.src)) {
+          img.remove();
+          return;
+        }
+        
+        // Add to processed set
+        processedImages.add(img.src);
+        
+        // Fix relative URLs
+        if (img.src.startsWith('//')) {
+          img.src = 'https:' + img.src;
+        }
+        
+        // Make images open in a new tab when clicked
+        img.addEventListener('click', function(e) {
+          e.preventDefault();
+          window.open(this.src, '_blank');
+        });
+        
+        // Add pointer cursor
+        img.style.cursor = 'pointer';
+      }
+    });
+    
+    // Fix tables
+    const tables = tempElement.querySelectorAll('table');
+    tables.forEach(table => {
+      table.classList.add('rabbithole-table');
+      table.setAttribute('border', '1');
+      table.setAttribute('cellpadding', '4');
+      table.setAttribute('cellspacing', '0');
+      
+      // Make sure tables aren't too wide
+      table.style.maxWidth = '100%';
+      table.style.overflowX = 'auto';
+      table.style.display = 'block';
+    });
+  }
+  
+  // Set the content
+  container.innerHTML = '';
+  
+  // Add a source-specific link at the top
+  const sourceLink = document.createElement('div');
+  sourceLink.className = 'rabbithole-wiki-link';
+  
+  if (window.selectedSource === 'Wikipedia') {
+    sourceLink.innerHTML = `<a href="https://en.wikipedia.org/wiki/${encodeURIComponent(title)}" target="_blank" rel="noopener noreferrer">
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+        <path d="M8 0C3.58 0 0 3.58 0 8c0 4.42 3.58 8 8 8s8-3.58 8-8c0-4.42-3.58-8-8-8zm0 7.8L5.67 4.83l-.66.67L8 8.2l2.99-2.7-.66-.67L8 7.8z"/>
+      </svg>
+      View this article on Wikipedia
+    </a>`;
+  } else {
+    sourceLink.innerHTML = `<a href="https://www.dictionary.com/browse/${encodeURIComponent(title)}" target="_blank" rel="noopener noreferrer">
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+        <path d="M8 0C3.58 0 0 3.58 0 8c0 4.42 3.58 8 8 8s8-3.58 8-8c0-4.42-3.58-8-8-8zm0 7.8L5.67 4.83l-.66.67L8 8.2l2.99-2.7-.66-.67L8 7.8z"/>
+      </svg>
+      View full definition on Dictionary.com
+    </a>`;
+  }
+  
+  container.appendChild(sourceLink);
+  
+  // Add the article content
+  container.appendChild(tempElement);
+  
+  // Process links only for Wikipedia content
+  if (window.selectedSource === 'Wikipedia') {
+    processWikiLinks(tempElement);
+  }
+  
+  // Add source toggle directly in the modal
+  // This allows switching without going back to the popup
+  const toggleContainer = document.createElement('div');
+  toggleContainer.className = 'rabbithole-source-toggle';
+  toggleContainer.innerHTML = `
+    <div class="extension-toggle">
+      <label class="toggle-switch">
+        <input type="checkbox" id="modalSourceToggle" ${window.selectedSource === 'Dictionary' ? 'checked' : ''}>
+        <span class="toggle-slider"></span>
+      </label>
+      <span class="toggle-label">Source: <span id="modalCurrentSource">${window.selectedSource}</span></span>
+    </div>
+  `;
+  
+  // Add the toggle before the content
+  container.insertBefore(toggleContainer, sourceLink);
+  
+  // Add event listener for the toggle
+  const modalToggle = container.querySelector('#modalSourceToggle');
+  modalToggle.addEventListener('change', async function() {
+    const newSource = this.checked ? 'Dictionary' : 'Wikipedia';
+    console.log("Changing source to:", newSource);
+    
+    // Update the display
+    const sourceLabel = container.querySelector('#modalCurrentSource');
+    if (sourceLabel) {
+      sourceLabel.textContent = newSource;
+    }
+    
+    // Save the setting
+    window.selectedSource = newSource;
+    chrome.storage.sync.set({ 'selectedSource': newSource });
+    
+    // Reload the content with the new source
+    await processArticleContent(title, container);
+  });
+}
