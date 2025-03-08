@@ -917,20 +917,11 @@ input:checked + .toggle-slider:before {
 }
 
 .dropdown-source-icon {
-  width: 16px;
-  height: 16px;
-  margin-right: 6px;
-  background-size: contain;
-  background-repeat: no-repeat;
-  background-position: center;
+  /* Removing icon-related styles */
 }
 
-.wikipedia-icon {
-  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="%23000"><path d="M14.5 0h-13C.7 0 0 .7 0 1.5v13c0 .8.7 1.5 1.5 1.5h13c.8 0 1.5-.7 1.5-1.5v-13c0-.8-.7-1.5-1.5-1.5zM8 12.5L7 8 5.5 12.5h-1L3 7.4l-.5 5.1H1.3L2 4h1.6L5 9.1 6.4 4H8l1.5 5.1L11 4h1.6l.7 8.5h-1.2l-.5-5.1L10.1 12.5H9l-1-4.5z"/></svg>');
-}
-
-.dictionary-icon {
-  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="%23000"><path d="M14 1H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1zm-1 11H4a1 1 0 0 1 0-2h9v2zm0-3H4V3h9v6z"/></svg>');
+.dropdown-source-icon svg {
+  /* Removing SVG styles */
 }
 
 .dropdown-label {
@@ -944,10 +935,10 @@ input:checked + .toggle-slider:before {
   content: "";
   width: 0;
   height: 0;
+  margin-left: 6px;
   border-left: 4px solid transparent;
   border-right: 4px solid transparent;
-  border-top: 4px solid var(--text-secondary);
-  margin-left: 6px;
+  border-top: 5px solid #666;
 }
 
 .dropdown-content {
@@ -1162,4 +1153,18 @@ input:checked + .toggle-slider:before {
 .popup-layout.no-image .popup-content {
   margin-left: 0;
   padding-left: 0;
+}
+
+/* Add styles for the new feature icon */
+.feature-icon {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--primary-light);
+  color: var(--primary-color);
+  border-radius: 50%;
+  margin-right: 10px;
+  font-size: 14px;
 }

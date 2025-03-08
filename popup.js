@@ -45,25 +45,21 @@ function showStatusIndicator(message) {
   }, 2000);
 }
 
-// Get the necessary elements (assuming these exist in your popup.html)
+// Get the necessary elements from popup.html
 document.addEventListener('DOMContentLoaded', function() {
   console.log('RabbitHole popup loaded');
   
   const toggleSwitch = document.getElementById('extensionToggle');
   const toggleStatus = document.getElementById('toggleStatus');
-  const sourceToggle = document.getElementById('sourceToggle');
-  const currentSource = document.getElementById('currentSource');
   
   // Load saved settings
-  chrome.storage.sync.get(['rabbitHoleEnabled', 'selectedSource'], function(data) {
+  chrome.storage.sync.get(['rabbitHoleEnabled'], function(data) {
     const isEnabled = data.rabbitHoleEnabled !== undefined ? data.rabbitHoleEnabled : true;
     console.log('Extension enabled state loaded from storage:', isEnabled);
     
     toggleSwitch.checked = isEnabled;
     toggleStatus.textContent = isEnabled ? 'enabled' : 'disabled';
     toggleStatus.style.color = isEnabled ? '#0550ae' : '#777';
-    sourceToggle.checked = data.selectedSource === 'Dictionary';
-    currentSource.textContent = data.selectedSource || 'Wikipedia';
   });
   
   // Handle toggle changes
@@ -99,15 +95,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
       }
     });
-  });
-  
-  sourceToggle.addEventListener('change', function() {
-    const selectedSource = sourceToggle.checked ? 'Dictionary' : 'Wikipedia';
-    chrome.storage.sync.set({ 'selectedSource': selectedSource });
-    currentSource.textContent = selectedSource;
-    
-    // Show status indicator
-    showStatusIndicator(`Source changed to ${selectedSource}`);
   });
   
   // Add hover effects to feature cards

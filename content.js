@@ -95,8 +95,14 @@ function createPopup(data, position, isTreeNode = false, nodeId = null, sourceEl
     sourceElement.dataset.popupId = popup.dataset.sourceElementId;
   }
   
+  // Store the source used to fetch this data
+  const dataSource = data.source || window.selectedSource || 'Wikipedia';
+  popup.dataset.source = dataSource;
+  
+  console.log('Creating popup for:', data.title, 'with source:', dataSource);
+  
   // Different layout for Dictionary vs Wikipedia
-  if (window.selectedSource === 'Dictionary') {
+  if (dataSource === 'Dictionary') {
     // Dictionary layout (no image)
     let popupContent = `
       <div class="popup-modern popup-dictionary">
@@ -104,16 +110,13 @@ function createPopup(data, position, isTreeNode = false, nodeId = null, sourceEl
           <h2 class="popup-title">${data.title}</h2>
           <div class="popup-dropdown">
             <div class="dropdown-button">
-              <span class="dropdown-source-icon dictionary-icon"></span>
               <span class="dropdown-label">Dictionary</span>
             </div>
             <div class="dropdown-content">
               <div class="dropdown-item" data-source="Wikipedia">
-                <span class="dropdown-source-icon wikipedia-icon"></span>
                 <span>Wikipedia</span>
               </div>
               <div class="dropdown-item active" data-source="Dictionary">
-                <span class="dropdown-source-icon dictionary-icon"></span>
                 <span>Dictionary</span>
               </div>
             </div>
@@ -138,16 +141,13 @@ function createPopup(data, position, isTreeNode = false, nodeId = null, sourceEl
           <h2 class="popup-title">${data.title}</h2>
           <div class="popup-dropdown">
             <div class="dropdown-button">
-              <span class="dropdown-source-icon wikipedia-icon"></span>
               <span class="dropdown-label">Wikipedia</span>
             </div>
             <div class="dropdown-content">
               <div class="dropdown-item active" data-source="Wikipedia">
-                <span class="dropdown-source-icon wikipedia-icon"></span>
                 <span>Wikipedia</span>
               </div>
               <div class="dropdown-item" data-source="Dictionary">
-                <span class="dropdown-source-icon dictionary-icon"></span>
                 <span>Dictionary</span>
               </div>
             </div>
@@ -171,6 +171,32 @@ function createPopup(data, position, isTreeNode = false, nodeId = null, sourceEl
   
   // Add event listeners
   
+  // Add mouseenter/mouseleave events to the popup itself
+  popup.addEventListener('mouseenter', function() {
+    // Keep the popup visible when mouse is over it
+    this.dataset.isHovered = 'true';
+  });
+  
+  popup.addEventListener('mouseleave', function() {
+    // Set flag for cleanup
+    this.dataset.isHovered = 'false';
+    // Add fadeout class
+    this.classList.add('rabbithole-popup-fadeout');
+    // Schedule removal
+    setTimeout(() => {
+      // Only remove if still not hovered
+      if (this.dataset.isHovered !== 'true' && document.body.contains(this)) {
+        this.remove();
+      }
+    }, 200); // Match animation duration
+  });
+  
+  // Make the title clickable to expand
+  popup.querySelector('.popup-title').addEventListener('click', function() {
+    popup.remove();
+    createExpandedModal(data, isTreeNode ? nodeId : null);
+  });
+  
   // Dropdown functionality
   const dropdownButton = popup.querySelector('.dropdown-button');
   const dropdownContent = popup.querySelector('.dropdown-content');
@@ -193,10 +219,8 @@ function createPopup(data, position, isTreeNode = false, nodeId = null, sourceEl
       dropdownItems.forEach(i => i.classList.remove('active'));
       this.classList.add('active');
       
-      // Update dropdown button
-      const buttonIcon = dropdownButton.querySelector('.dropdown-source-icon');
+      // Update dropdown button label
       const buttonLabel = dropdownButton.querySelector('.dropdown-label');
-      buttonIcon.className = `dropdown-source-icon ${newSource.toLowerCase()}-icon`;
       buttonLabel.textContent = newSource;
       
       // Hide dropdown
@@ -209,6 +233,9 @@ function createPopup(data, position, isTreeNode = false, nodeId = null, sourceEl
       // Fetch new data for the current term
       const newData = await fetchData(data.title);
       if (newData) {
+        // Add source info to the data
+        newData.source = newSource;
+        
         // Remove current popup
         popup.remove();
         
@@ -218,28 +245,13 @@ function createPopup(data, position, isTreeNode = false, nodeId = null, sourceEl
     });
   });
   
-  // Make the title clickable to expand
-  popup.querySelector('.popup-title').addEventListener('click', function() {
-    popup.remove();
-    createExpandedModal(data, isTreeNode ? nodeId : null);
-  });
-  
-  // Prevent popup from disappearing when mouse is over it
-  popup.addEventListener('mouseenter', function() {
-    this.dataset.isHovered = 'true';
-  });
-  
-  popup.addEventListener('mouseleave', function() {
-    this.dataset.isHovered = 'false';
-    
-    // Check if the original source element is still being hovered
-    let sourceStillHovered = false;
-    if (sourceElement && sourceElement.matches(':hover')) {
-      sourceStillHovered = true;
-    }
-    
-    // Only remove if neither the popup nor the source are hovered
-    if (!sourceStillHovered) {
+  // Close popup when clicking outside
+  document.addEventListener('click', function closePopup(e) {
+    // Only close if the click is outside the popup
+    if (!popup.contains(e.target)) {
+      // Remove the event listener to avoid memory leaks
+      document.removeEventListener('click', closePopup);
+      // Remove the popup
       removePopups();
     }
   });
@@ -250,8 +262,7 @@ function createPopup(data, position, isTreeNode = false, nodeId = null, sourceEl
   return popup;
 }
 
-
-// Function to remove all popups
+// Function to remove popups with animation
 function removePopups() {
   // Get all popups
   const popups = document.querySelectorAll('.rabbithole-popup');
@@ -276,7 +287,7 @@ function removePopups() {
         if (document.body.contains(popup)) {
           popup.remove();
         }
-      }, 300); // Match the animation duration
+      }, 200); // Match the animation duration
     }
   });
 }
@@ -768,8 +779,10 @@ function processWikiLinks(element) {
                 };
                 
                 try {
+                  // Fetch data with current source setting
                   const data = await fetchData(title);
                   if (data) {
+                    // Create the popup with the data
                     createPopup(data, position, false, null, this);
                   }
                 } catch (error) {
@@ -1010,9 +1023,20 @@ function initRabbitHole() {
                 y: rect.bottom + window.scrollY
               };
               
-              // Create the popup but don't automatically schedule its removal
-              // The popup itself will handle mouse enter/leave events
-              const popup = createPopup(data, position, false, null, this);
+              // Ensure we're using the data with the correct source
+              if (data && data.source && data.source !== window.selectedSource) {
+                // If data was fetched with a different source than current setting,
+                // we need to re-fetch with current source
+                fetchData(data.title).then(newData => {
+                  if (newData) {
+                    // Create popup with the newly fetched data
+                    createPopup(newData, position, false, null, this);
+                  }
+                });
+              } else {
+                // Create the popup with existing data
+                createPopup(data, position, false, null, this);
+              }
             });
 
             // Make sure the click event is properly set up
@@ -1078,17 +1102,24 @@ chrome.storage.onChanged.addListener(function(changes) {
 });
 
 async function fetchData(term) {
-  console.log('Selected Source: ' + window.selectedSource);
+  console.log('Fetching data for:', term, 'with source:', window.selectedSource);
+  let data;
+  
   if (window.selectedSource === 'Wikipedia') {
-    return fetchWikipediaData(term);
+    data = await fetchWikipediaData(term);
+    if (data) {
+      data.source = 'Wikipedia';
+      console.log('Retrieved Wikipedia data for:', term);
+    }
   } else {
-      /*title: term,
-      extract: "Click to view the definition on the dictionary website.",
-      thumbnail: null,
-      url: `https://www.dictionary.com/browse/${encodeURIComponent(term)}`
-      */
-      return fetchDictionaryData(term);
+    data = await fetchDictionaryData(term);
+    if (data) {
+      data.source = 'Dictionary';
+      console.log('Retrieved Dictionary data for:', term);
+    }
   }
+  
+  return data;
 }
 
 
