@@ -30,12 +30,15 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Update the status text
     toggleStatus.textContent = isEnabled ? 'enabled' : 'disabled';
-    toggleStatus.style.color = isEnabled ? '#0550ae' : '#777';
+    toggleStatus.style.color = isEnabled ? 'var(--primary-color)' : '#777';
     
     // Save the state to storage
     chrome.storage.sync.set({ 'rabbitHoleEnabled': isEnabled }, function() {
       console.log('Extension state saved to storage:', isEnabled);
     });
+    
+    // Show status indicator
+    showStatusIndicator(isEnabled ? 'Extension enabled!' : 'Extension disabled');
     
     // Send message to content script to update its state
     chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
@@ -55,17 +58,62 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   });
   
-  // Add a status message
-  const footer = document.querySelector('.footer');
-  if (footer) {
-    const statusMsg = document.createElement('p');
-    statusMsg.textContent = 'Extension is active and ready to use!';
-    statusMsg.style.color = '#4CAF50';
-    statusMsg.style.fontWeight = 'bold';
-    statusMsg.style.marginTop = '10px';
-    footer.appendChild(statusMsg);
-  }
+  // Add hover effects to feature cards
+  const features = document.querySelectorAll('.feature');
+  features.forEach(feature => {
+    feature.addEventListener('mouseenter', function() {
+      this.style.transform = 'translateY(-2px)';
+      this.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.1)';
+    });
+    
+    feature.addEventListener('mouseleave', function() {
+      this.style.transform = 'translateY(0)';
+      this.style.boxShadow = 'none';
+    });
+  });
 });
 
-// No other functionality is needed since the content script 
-// operates independently once loaded
+// Function to show a temporary status indicator
+function showStatusIndicator(message) {
+  // Check if an indicator already exists and remove it
+  const existingIndicator = document.querySelector('.status-indicator');
+  if (existingIndicator) {
+    existingIndicator.remove();
+  }
+  
+  // Create the indicator
+  const indicator = document.createElement('div');
+  indicator.className = 'status-indicator';
+  indicator.textContent = message;
+  
+  // Set the style
+  indicator.style.position = 'fixed';
+  indicator.style.bottom = '10px';
+  indicator.style.left = '50%';
+  indicator.style.transform = 'translateX(-50%)';
+  indicator.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+  indicator.style.color = 'white';
+  indicator.style.padding = '8px 16px';
+  indicator.style.borderRadius = '20px';
+  indicator.style.fontSize = '12px';
+  indicator.style.fontWeight = 'bold';
+  indicator.style.zIndex = '1000';
+  indicator.style.opacity = '0';
+  indicator.style.transition = 'opacity 0.3s ease';
+  
+  // Add to the DOM
+  document.body.appendChild(indicator);
+  
+  // Fade in
+  setTimeout(() => {
+    indicator.style.opacity = '1';
+  }, 10);
+  
+  // Remove after delay
+  setTimeout(() => {
+    indicator.style.opacity = '0';
+    setTimeout(() => {
+      indicator.remove();
+    }, 300);
+  }, 2000);
+}

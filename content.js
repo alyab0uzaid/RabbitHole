@@ -389,6 +389,8 @@ async function fetchFullArticle(title, container) {
       
       // Fix image URLs and handling
       const images = tempElement.querySelectorAll('img');
+      const processedSrcs = new Set(); // Track processed image sources to avoid duplicates
+      
       images.forEach(img => {
         // Fix the src attribute for images
         if (img.src) {
@@ -398,6 +400,18 @@ async function fetchFullArticle(title, container) {
           } else if (img.src.startsWith('//')) {
             img.src = 'https:' + img.src;
           }
+          
+          // Check if this is a duplicate image (same source)
+          if (processedSrcs.has(img.src)) {
+            // Remove duplicate image
+            if (img.parentNode) {
+              img.parentNode.removeChild(img);
+            }
+            return;
+          }
+          
+          // Add to processed sources
+          processedSrcs.add(img.src);
           
           // Add loading="lazy" attribute
           img.setAttribute('loading', 'lazy');
@@ -439,23 +453,19 @@ async function fetchFullArticle(title, container) {
         }
       });
       
-      // Fix image containers (figures and thumbnails)
-      const figures = tempElement.querySelectorAll('.thumb, figure');
-      figures.forEach(figure => {
-        figure.style.maxWidth = '300px';
-        figure.style.margin = '1em auto';
-        figure.style.textAlign = 'center';
-        figure.style.backgroundColor = '#f8f9fa';
-        figure.style.padding = '8px';
-        figure.style.borderRadius = '8px';
-        
-        // Fix captions
-        const captions = figure.querySelectorAll('.thumbcaption, figcaption');
-        captions.forEach(caption => {
-          caption.style.fontSize = '12px';
-          caption.style.color = '#555';
-          caption.style.padding = '5px';
-        });
+      // Remove redundant image containers
+      const thumbs = tempElement.querySelectorAll('.thumb');
+      thumbs.forEach(thumb => {
+        // Check if this thumb contains multiple identical images
+        const thumbImages = thumb.querySelectorAll('img');
+        if (thumbImages.length > 1) {
+          // Keep only the first image
+          for (let i = 1; i < thumbImages.length; i++) {
+            if (thumbImages[i].parentNode) {
+              thumbImages[i].parentNode.removeChild(thumbImages[i]);
+            }
+          }
+        }
       });
       
       // Enhance tables
@@ -475,8 +485,8 @@ async function fetchFullArticle(title, container) {
       });
       
       // Fix infobox styling
-      const infoboxes = tempElement.querySelectorAll('.infobox');
-      infoboxes.forEach(infobox => {
+      const originalInfoboxes = tempElement.querySelectorAll('.infobox');
+      originalInfoboxes.forEach(infobox => {
         infobox.style.float = 'right';
         infobox.style.margin = '0 0 20px 20px';
         infobox.style.maxWidth = '300px';
@@ -506,6 +516,104 @@ async function fetchFullArticle(title, container) {
       // Add the article content
       container.appendChild(tempElement);
       
+      // Add modern styling to the overall article
+      tempElement.style.fontSize = '15px';
+      tempElement.style.lineHeight = '1.8';
+      tempElement.style.color = '#2d3748';
+      
+      // Fix overall article layout
+      const articleElements = tempElement.querySelectorAll('div, section, article');
+      articleElements.forEach(element => {
+        if (element.id === 'bodyContent' || element.className.includes('mw-parser-output')) {
+          element.style.maxWidth = '100%';
+          element.style.width = '100%';
+        }
+      });
+      
+      // Enhance all images for a more modern look
+      const allImages = container.querySelectorAll('img');
+      allImages.forEach(img => {
+        img.style.borderRadius = '8px';
+        img.style.maxWidth = '100%';
+        
+        // Only if it's not in a figure/thumb already
+        if (!img.closest('.thumb') && !img.closest('figure')) {
+          img.style.display = 'block';
+          img.style.margin = '1.5em auto';
+          img.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.1)';
+        }
+      });
+      
+      // Style infoboxes (usually on the right in Wikipedia)
+      const infoboxes = container.querySelectorAll('.infobox, .infotable');
+      infoboxes.forEach(box => {
+        box.style.border = '1px solid #e2e8f0';
+        box.style.borderRadius = '12px';
+        box.style.overflow = 'hidden';
+        box.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.08)';
+        box.style.margin = '0 0 20px 20px';
+        box.style.float = 'right';
+        box.style.maxWidth = '320px';
+        box.style.fontSize = '14px';
+        box.style.lineHeight = '1.6';
+        
+        // Style infobox headers
+        const headers = box.querySelectorAll('th');
+        headers.forEach(header => {
+          header.style.backgroundColor = '#3a5ccc';
+          header.style.color = 'white';
+          header.style.padding = '10px';
+        });
+        
+        // Style infobox data cells
+        const cells = box.querySelectorAll('td');
+        cells.forEach(cell => {
+          cell.style.padding = '8px 10px';
+        });
+        
+        // Style infobox rows
+        const rows = box.querySelectorAll('tr');
+        rows.forEach((row, index) => {
+          if (index % 2 === 0) {
+            row.style.backgroundColor = '#f7fafc';
+          }
+        });
+      });
+      
+      // Enhance blockquotes
+      const blockquotes = container.querySelectorAll('blockquote');
+      blockquotes.forEach(quote => {
+        quote.style.borderLeft = '4px solid #3a5ccc';
+        quote.style.padding = '12px 20px';
+        quote.style.margin = '20px 0';
+        quote.style.backgroundColor = '#eef1fc';
+        quote.style.borderRadius = '0 8px 8px 0';
+        quote.style.fontStyle = 'italic';
+      });
+      
+      // Style definition lists
+      const definitionLists = container.querySelectorAll('dl');
+      definitionLists.forEach(list => {
+        list.style.margin = '20px 0';
+        list.style.padding = '15px';
+        list.style.backgroundColor = '#f7fafc';
+        list.style.borderRadius = '8px';
+        list.style.border = '1px solid #e2e8f0';
+        
+        const terms = list.querySelectorAll('dt');
+        terms.forEach(term => {
+          term.style.fontWeight = 'bold';
+          term.style.color = '#3a5ccc';
+          term.style.marginBottom = '6px';
+        });
+        
+        const definitions = list.querySelectorAll('dd');
+        definitions.forEach(def => {
+          def.style.marginBottom = '12px';
+          def.style.marginLeft = '20px';
+        });
+      });
+      
       // Add smooth scroll behavior
       container.style.scrollBehavior = 'smooth';
       
@@ -523,6 +631,39 @@ async function fetchFullArticle(title, container) {
         heading.style.fontWeight = '600';
         heading.style.marginTop = '24px';
         heading.style.marginBottom = '16px';
+      });
+      
+      // Fix image containers (figures and thumbnails) with modern styling
+      const figures = tempElement.querySelectorAll('.thumb, figure');
+      figures.forEach(figure => {
+        figure.style.maxWidth = '400px';
+        figure.style.margin = '1.5em auto';
+        figure.style.textAlign = 'center';
+        figure.style.backgroundColor = '#f9fafb';
+        figure.style.padding = '12px';
+        figure.style.borderRadius = '12px';
+        figure.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.08)';
+        figure.style.transition = 'box-shadow 0.3s ease';
+        
+        // Add hover effect
+        figure.addEventListener('mouseenter', function() {
+          this.style.boxShadow = '0 8px 24px rgba(0, 0, 0, 0.12)';
+        });
+        
+        figure.addEventListener('mouseleave', function() {
+          this.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.08)';
+        });
+        
+        // Fix captions
+        const captions = figure.querySelectorAll('.thumbcaption, figcaption');
+        captions.forEach(caption => {
+          caption.style.fontSize = '13px';
+          caption.style.color = '#4a5568';
+          caption.style.padding = '8px 5px 0';
+          caption.style.marginTop = '8px';
+          caption.style.borderTop = '1px solid #edf2f7';
+          caption.style.fontStyle = 'italic';
+        });
       });
     } else {
       console.error("Failed to load article:", data);
