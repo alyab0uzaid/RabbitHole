@@ -10,6 +10,9 @@ let isEnabled = true; // Default to enabled
 // Add a cache for dictionary definitions
 const dictionaryCache = new Map();
 
+// Add this at the top with other global variables (around line 5)
+window.selectedSource = 'Wikipedia'; // Default to Wikipedia
+
 // Listen for messages from the popup
 chrome.runtime.onMessage.addListener(function(message, sender, sendResponse) {
   if (message.action === "setEnabled") {
@@ -211,9 +214,13 @@ function createPopup(data, position, isTreeNode = false, nodeId = null, sourceEl
   dropdownItems.forEach(item => {
     item.addEventListener('click', async function(e) {
       e.stopPropagation();
+      e.preventDefault();
       
       const newSource = this.dataset.source;
       console.log("Changing source in popup to:", newSource);
+      
+      // Debug
+      console.log("Current source before change:", window.selectedSource);
       
       // Update UI
       dropdownItems.forEach(i => i.classList.remove('active'));
@@ -228,11 +235,17 @@ function createPopup(data, position, isTreeNode = false, nodeId = null, sourceEl
       
       // Save the setting
       window.selectedSource = newSource;
-      chrome.storage.sync.set({ 'selectedSource': newSource });
+      chrome.storage.sync.set({ 'selectedSource': newSource }, function() {
+        console.log("Source setting saved:", newSource);
+      });
+      
+      console.log("Source changed to:", window.selectedSource);
       
       // Fetch new data for the current term
+      console.log("Fetching new data with source:", window.selectedSource);
       const newData = await fetchData(data.title);
       if (newData) {
+        console.log("Got new data:", newData);
         // Add source info to the data
         newData.source = newSource;
         
@@ -241,6 +254,8 @@ function createPopup(data, position, isTreeNode = false, nodeId = null, sourceEl
         
         // Create new popup with updated data
         createPopup(newData, position, isTreeNode, nodeId, sourceElement);
+      } else {
+        console.error("Failed to fetch new data for source:", newSource);
       }
     });
   });
@@ -943,9 +958,14 @@ function initRabbitHole() {
   isInitialized = true;
   
   // Check if the extension is enabled in storage
-  chrome.storage.sync.get('rabbitHoleEnabled', function(data) {
+  chrome.storage.sync.get(['rabbitHoleEnabled', 'selectedSource'], function(data) {
     // Default to enabled if setting doesn't exist
     isEnabled = data.rabbitHoleEnabled !== undefined ? data.rabbitHoleEnabled : true;
+    
+    // Load saved source preference
+    window.selectedSource = data.selectedSource || 'Wikipedia';
+    console.log("RabbitHole initialized with source:", window.selectedSource);
+    
     console.log("RabbitHole extension is " + (isEnabled ? "enabled" : "disabled") + " on initialization");
   });
   
@@ -1105,7 +1125,10 @@ async function fetchData(term) {
   console.log('Fetching data for:', term, 'with source:', window.selectedSource);
   let data;
   
-  if (window.selectedSource === 'Wikipedia') {
+  // Make sure we have the latest selected source
+  const currentSource = window.selectedSource || 'Wikipedia';
+  
+  if (currentSource === 'Wikipedia') {
     data = await fetchWikipediaData(term);
     if (data) {
       data.source = 'Wikipedia';
@@ -1275,7 +1298,10 @@ async function processArticleContent(title, container) {
   const modalToggle = container.querySelector('#modalSourceToggle');
   modalToggle.addEventListener('change', async function() {
     const newSource = this.checked ? 'Dictionary' : 'Wikipedia';
-    console.log("Changing source to:", newSource);
+    console.log("Changing source in modal to:", newSource);
+    
+    // Debug
+    console.log("Current source before change:", window.selectedSource);
     
     // Update the display
     const sourceLabel = container.querySelector('#modalCurrentSource');
@@ -1285,9 +1311,25 @@ async function processArticleContent(title, container) {
     
     // Save the setting
     window.selectedSource = newSource;
-    chrome.storage.sync.set({ 'selectedSource': newSource });
+    chrome.storage.sync.set({ 'selectedSource': newSource }, function() {
+      console.log("Source setting saved:", newSource);
+    });
+    
+    console.log("Source changed to:", window.selectedSource);
+    
+    // Clear the container first
+    const contentArea = container.querySelector('.rabbithole-article-content');
+    if (contentArea) {
+      contentArea.innerHTML = `
+        <div class="rabbithole-loading">
+          <div class="loading-spinner"></div>
+          <p>Loading content from ${newSource}...</p>
+        </div>
+      `;
+    }
     
     // Reload the content with the new source
-    await processArticleContent(title, container);
+    console.log("Reloading content with new source:", window.selectedSource);
+    await processArticleContent(title, container.querySelector('.rabbithole-article-content'));
   });
 }
