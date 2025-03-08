@@ -387,20 +387,75 @@ async function fetchFullArticle(title, container) {
         elements.forEach(el => el.remove());
       });
       
-      // Fix image URLs
+      // Fix image URLs and handling
       const images = tempElement.querySelectorAll('img');
       images.forEach(img => {
-        if (img.src && img.src.startsWith('//')) {
-          img.src = 'https:' + img.src;
+        // Fix the src attribute for images
+        if (img.src) {
+          // Convert relative URLs to absolute
+          if (img.src.startsWith('/')) {
+            img.src = 'https://en.wikipedia.org' + img.src;
+          } else if (img.src.startsWith('//')) {
+            img.src = 'https:' + img.src;
+          }
+          
+          // Add loading="lazy" attribute
+          img.setAttribute('loading', 'lazy');
+          
+          // Add a nice transition effect
+          img.style.transition = 'opacity 0.3s ease';
+          img.style.opacity = '0';
+          img.onload = function() {
+            this.style.opacity = '1';
+          };
+          
+          // Make the image open in a new tab when clicked
+          img.style.cursor = 'pointer';
+          img.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            // Open the image in a new tab
+            if (this.src) {
+              window.open(this.src, '_blank');
+            }
+          });
         }
-        // Add loading="lazy" attribute
-        img.setAttribute('loading', 'lazy');
-        // Add a nice transition effect
-        img.style.transition = 'opacity 0.3s ease';
-        img.style.opacity = '0';
-        img.onload = function() {
-          this.style.opacity = '1';
-        };
+        
+        // Handle srcset attribute as well
+        if (img.hasAttribute('srcset')) {
+          const srcset = img.getAttribute('srcset');
+          const newSrcset = srcset.split(',').map(src => {
+            const parts = src.trim().split(' ');
+            if (parts[0].startsWith('/')) {
+              return 'https://en.wikipedia.org' + parts[0] + ' ' + parts[1];
+            } else if (parts[0].startsWith('//')) {
+              return 'https:' + parts[0] + ' ' + parts[1];
+            }
+            return src;
+          }).join(', ');
+          
+          img.setAttribute('srcset', newSrcset);
+        }
+      });
+      
+      // Fix image containers (figures and thumbnails)
+      const figures = tempElement.querySelectorAll('.thumb, figure');
+      figures.forEach(figure => {
+        figure.style.maxWidth = '300px';
+        figure.style.margin = '1em auto';
+        figure.style.textAlign = 'center';
+        figure.style.backgroundColor = '#f8f9fa';
+        figure.style.padding = '8px';
+        figure.style.borderRadius = '8px';
+        
+        // Fix captions
+        const captions = figure.querySelectorAll('.thumbcaption, figcaption');
+        captions.forEach(caption => {
+          caption.style.fontSize = '12px';
+          caption.style.color = '#555';
+          caption.style.padding = '5px';
+        });
       });
       
       // Enhance tables
@@ -504,142 +559,216 @@ function processWikiLinks(element) {
       console.log(`Found ${links.length} links to process`);
       
       links.forEach((link, index) => {
-        // Store the original href for reference
-        const originalHref = link.getAttribute('href');
-        
-        if (!originalHref) return;
-        
-        // Check if it's an internal Wikipedia link
-        if (originalHref.startsWith('/wiki/') || originalHref.includes('wikipedia.org/wiki/')) {
-          console.log(`Processing wiki link ${index}: ${originalHref}`);
+        try {
+          // Store the original href for reference
+          const originalHref = link.getAttribute('href');
           
-          // Extract the title from the link
-          let title = '';
-          if (originalHref.startsWith('/wiki/')) {
-            title = decodeURIComponent(originalHref.substring(6)); // Remove '/wiki/'
-          } else {
-            const parts = originalHref.split('/wiki/');
-            title = decodeURIComponent(parts[parts.length - 1]);
-          }
+          if (!originalHref) return;
           
-          // Replace spaces with spaces (underscores are in URLs)
-          title = title.replace(/_/g, ' ');
+          // Handle different types of links
           
-          // Remove any anchor parts (#section)
-          title = title.split('#')[0];
-          
-          // Skip certain special pages
-          if (title.startsWith('File:') || 
-              title.startsWith('Special:') || 
-              title.startsWith('Help:') || 
-              title.startsWith('Category:') ||
-              title.startsWith('Talk:') ||
-              title.startsWith('Wikipedia:')) {
-            console.log(`Skipping special wiki page: ${title}`);
-            // Open in new tab for special pages
-            link.setAttribute('target', '_blank');
-            link.setAttribute('rel', 'noopener noreferrer');
-            return;
-          }
-          
-          console.log(`Wiki link title: ${title}`);
-          
-          // Store title as a data attribute
-          link.setAttribute('data-wiki-title', title);
-          
-          // Completely replace the href to prevent default navigation
-          const originalURL = link.href;
-          link.setAttribute('href', 'javascript:void(0)');
-          
-          // Store original URL for backup access
-          link.setAttribute('data-original-url', originalURL);
-          
-          // Add styling
-          link.classList.add('rabbithole-wiki-internal-link');
-          
-          // Remove any existing click handlers
-          const newLink = link.cloneNode(true);
-          link.parentNode.replaceChild(newLink, link);
-          link = newLink;
-          
-          // Add click event handler
-          link.addEventListener('click', async function(e) {
-            console.log("Wiki link clicked:", this.getAttribute('data-wiki-title'));
-            e.preventDefault();
-            e.stopPropagation();
+          // 1. Regular Wikipedia article links
+          if ((originalHref.startsWith('/wiki/') || originalHref.includes('wikipedia.org/wiki/')) && 
+              // Exclude special pages, references, anchors, etc.
+              !originalHref.includes('#cite_note') && 
+              !originalHref.includes('#cite_ref') &&
+              !originalHref.match(/\/wiki\/(File|Special|Help|Category|Talk|Template|Wikipedia):/i)) {
             
-            const title = this.getAttribute('data-wiki-title');
-            if (!title) {
-              console.error("No title found in data attribute");
-              return;
+            console.log(`Processing wiki article link ${index}: ${originalHref}`);
+            
+            // Extract the title from the link
+            let title = '';
+            if (originalHref.startsWith('/wiki/')) {
+              title = decodeURIComponent(originalHref.substring(6)); // Remove '/wiki/'
+            } else {
+              const parts = originalHref.split('/wiki/');
+              title = decodeURIComponent(parts[parts.length - 1]);
             }
             
-            // Show a loading indicator in the link
-            const originalText = this.innerHTML;
-            this.innerHTML = `<span class="link-loading">Loading...</span>`;
+            // Replace spaces with spaces (underscores are in URLs)
+            title = title.replace(/_/g, ' ');
             
-            try {
-              const data = await fetchWikipediaData(title);
-              // Restore original text
-              this.innerHTML = originalText;
+            // Remove any anchor parts (#section)
+            title = title.split('#')[0];
+            
+            console.log(`Wiki link title: ${title}`);
+            
+            // Store title as a data attribute
+            link.setAttribute('data-wiki-title', title);
+            
+            // Completely replace the href to prevent default navigation
+            const originalURL = link.href;
+            link.setAttribute('href', 'javascript:void(0)');
+            
+            // Store original URL for backup access
+            link.setAttribute('data-original-url', originalURL);
+            
+            // Add styling
+            link.classList.add('rabbithole-wiki-internal-link');
+            
+            // Remove any existing click handlers
+            const newLink = link.cloneNode(true);
+            if (link.parentNode) {
+              link.parentNode.replaceChild(newLink, link);
+              link = newLink;
+            }
+            
+            // Add click event handler
+            link.addEventListener('click', async function(e) {
+              console.log("Wiki link clicked:", this.getAttribute('data-wiki-title'));
+              e.preventDefault();
+              e.stopPropagation();
               
-              if (data) {
-                // Create new modal with the data
-                createExpandedModal(data);
-              } else {
-                console.error("No data returned for:", title);
-                // Fallback to original URL if fetch fails
-                window.open(this.getAttribute('data-original-url'), '_blank');
+              const title = this.getAttribute('data-wiki-title');
+              if (!title) {
+                console.error("No title found in data attribute");
+                return;
               }
-            } catch (error) {
-              console.error("Error processing wiki link click:", error);
-              // Restore original text
-              this.innerHTML = originalText;
-              // Fallback to original URL if error
-              window.open(this.getAttribute('data-original-url'), '_blank');
-            }
-          });
-          
-          // Add hover tooltip event
-          link.addEventListener('mouseenter', function(e) {
-            const title = this.getAttribute('data-wiki-title');
-            if (!title) return;
-            
-            // Don't fetch if we're already showing a popup
-            const existingPopup = document.querySelector('.rabbithole-popup');
-            if (existingPopup) return;
-            
-            // Set timeout to prevent too many requests on quick mouse movements
-            this.hoverTimeout = setTimeout(async () => {
-              const rect = this.getBoundingClientRect();
-              const position = {
-                x: rect.left + window.scrollX,
-                y: rect.bottom + window.scrollY
-              };
+              
+              // Show a loading indicator in the link
+              const originalText = this.innerHTML;
+              this.innerHTML = `<span class="link-loading">Loading...</span>`;
               
               try {
                 const data = await fetchWikipediaData(title);
+                // Restore original text
+                this.innerHTML = originalText;
+                
                 if (data) {
-                  createPopup(data, position);
+                  // Create new modal with the data
+                  createExpandedModal(data);
+                } else {
+                  console.error("No data returned for:", title);
+                  // Fallback to original URL if fetch fails
+                  window.open(this.getAttribute('data-original-url'), '_blank');
                 }
               } catch (error) {
-                console.error("Error showing hover preview:", error);
+                console.error("Error processing wiki link click:", error);
+                // Restore original text
+                this.innerHTML = originalText;
+                // Fallback to original URL if error
+                window.open(this.getAttribute('data-original-url'), '_blank');
               }
-            }, 300);
-          });
-          
-          // Clear timeout if mouse leaves before the delay
-          link.addEventListener('mouseleave', function() {
-            if (this.hoverTimeout) {
-              clearTimeout(this.hoverTimeout);
-              this.hoverTimeout = null;
+            });
+            
+            // Add hover tooltip event
+            link.addEventListener('mouseenter', function(e) {
+              const title = this.getAttribute('data-wiki-title');
+              if (!title) return;
+              
+              // Don't fetch if we're already showing a popup
+              const existingPopup = document.querySelector('.rabbithole-popup');
+              if (existingPopup) return;
+              
+              // Set timeout to prevent too many requests on quick mouse movements
+              this.hoverTimeout = setTimeout(async () => {
+                const rect = this.getBoundingClientRect();
+                const position = {
+                  x: rect.left + window.scrollX,
+                  y: rect.bottom + window.scrollY
+                };
+                
+                try {
+                  const data = await fetchWikipediaData(title);
+                  if (data) {
+                    createPopup(data, position);
+                  }
+                } catch (error) {
+                  console.error("Error showing hover preview:", error);
+                }
+              }, 300);
+            });
+            
+            // Clear timeout if mouse leaves before the delay
+            link.addEventListener('mouseleave', function() {
+              if (this.hoverTimeout) {
+                clearTimeout(this.hoverTimeout);
+                this.hoverTimeout = null;
+              }
+            });
+          } 
+          // 2. Handle reference/citation links
+          else if (originalHref.includes('#cite_') || 
+                   originalHref.match(/\/wiki\/(File|Special|Help|Category|Talk|Template|Wikipedia):/i)) {
+            
+            console.log(`Processing special wiki link: ${originalHref}`);
+            
+            // Make it open in Wikipedia directly
+            const baseUrl = 'https://en.wikipedia.org';
+            let fullUrl;
+            
+            if (originalHref.startsWith('/')) {
+              fullUrl = baseUrl + originalHref;
+            } else if (originalHref.includes('wikipedia.org')) {
+              fullUrl = originalHref;
+            } else {
+              // Handle relative URLs that don't start with slash
+              fullUrl = baseUrl + '/' + originalHref;
             }
-          });
-          
-        } else if (link.href && !link.href.startsWith('javascript:')) {
-          // For external links, open in a new tab
-          link.setAttribute('target', '_blank');
-          link.setAttribute('rel', 'noopener noreferrer');
+            
+            link.setAttribute('href', fullUrl);
+            link.setAttribute('target', '_blank');
+            link.setAttribute('rel', 'noopener noreferrer');
+            link.classList.add('rabbithole-special-link');
+          }
+          // 3. Handle external links (non-Wikipedia)
+          else if (link.href && !link.href.startsWith('javascript:')) {
+            // Check if this might be an incorrectly formed internal link (like NASA.com/wiki/...)
+            if (originalHref.includes('/wiki/') && !originalHref.includes('wikipedia.org')) {
+              console.log(`Fixing malformed wiki link: ${originalHref}`);
+              
+              // This is likely a site-specific wiki link that should go to Wikipedia
+              const wikiPart = originalHref.substring(originalHref.indexOf('/wiki/') + 6);
+              const title = decodeURIComponent(wikiPart).replace(/_/g, ' ').split('#')[0];
+              
+              // Store the original link info
+              link.setAttribute('data-original-url', link.href);
+              link.setAttribute('data-wiki-title', title);
+              
+              // Replace the href to prevent navigation
+              link.setAttribute('href', 'javascript:void(0)');
+              
+              // Add styling
+              link.classList.add('rabbithole-wiki-internal-link');
+              link.classList.add('rabbithole-fixed-link');
+              
+              // Add click handler that attempts to find the Wikipedia article
+              link.addEventListener('click', async function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                const title = this.getAttribute('data-wiki-title');
+                if (!title) return;
+                
+                // Show loading state
+                const originalText = this.innerHTML;
+                this.innerHTML = `<span class="link-loading">Loading...</span>`;
+                
+                try {
+                  const data = await fetchWikipediaData(title);
+                  // Restore original text
+                  this.innerHTML = originalText;
+                  
+                  if (data) {
+                    createExpandedModal(data);
+                  } else {
+                    // If no Wikipedia data, open the original URL
+                    window.open(this.getAttribute('data-original-url'), '_blank');
+                  }
+                } catch (error) {
+                  console.error("Error with fixed link:", error);
+                  this.innerHTML = originalText;
+                  window.open(this.getAttribute('data-original-url'), '_blank');
+                }
+              });
+            } else {
+              // Regular external link
+              link.setAttribute('target', '_blank');
+              link.setAttribute('rel', 'noopener noreferrer');
+            }
+          }
+        } catch (error) {
+          console.error("Error processing individual link:", error);
         }
       });
       
