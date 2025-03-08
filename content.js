@@ -110,16 +110,13 @@ function createPopup(data, position, isTreeNode = false, nodeId = null, sourceEl
           <h2 class="popup-title">${data.title}</h2>
           <div class="popup-dropdown">
             <div class="dropdown-button">
-              <span class="dropdown-source-icon dictionary-icon"></span>
               <span class="dropdown-label">Dictionary</span>
             </div>
             <div class="dropdown-content">
               <div class="dropdown-item" data-source="Wikipedia">
-                <span class="dropdown-source-icon wikipedia-icon"></span>
                 <span>Wikipedia</span>
               </div>
               <div class="dropdown-item active" data-source="Dictionary">
-                <span class="dropdown-source-icon dictionary-icon"></span>
                 <span>Dictionary</span>
               </div>
             </div>
@@ -144,16 +141,13 @@ function createPopup(data, position, isTreeNode = false, nodeId = null, sourceEl
           <h2 class="popup-title">${data.title}</h2>
           <div class="popup-dropdown">
             <div class="dropdown-button">
-              <span class="dropdown-source-icon wikipedia-icon"></span>
               <span class="dropdown-label">Wikipedia</span>
             </div>
             <div class="dropdown-content">
               <div class="dropdown-item active" data-source="Wikipedia">
-                <span class="dropdown-source-icon wikipedia-icon"></span>
                 <span>Wikipedia</span>
               </div>
               <div class="dropdown-item" data-source="Dictionary">
-                <span class="dropdown-source-icon dictionary-icon"></span>
                 <span>Dictionary</span>
               </div>
             </div>
@@ -225,10 +219,8 @@ function createPopup(data, position, isTreeNode = false, nodeId = null, sourceEl
       dropdownItems.forEach(i => i.classList.remove('active'));
       this.classList.add('active');
       
-      // Update dropdown button
-      const buttonIcon = dropdownButton.querySelector('.dropdown-source-icon');
+      // Update dropdown button label
       const buttonLabel = dropdownButton.querySelector('.dropdown-label');
-      buttonIcon.className = `dropdown-source-icon ${newSource.toLowerCase()}-icon`;
       buttonLabel.textContent = newSource;
       
       // Hide dropdown

@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <title>RabbitHole</title>
   <link rel="stylesheet" href="styles.css">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 </head>
 <body>
   <div class="popup-container">
@@ -22,18 +21,13 @@
       <span class="toggle-label">Extension is <span id="toggleStatus">enabled</span></span>
     </div>
     
-    <!-- Source selection toggle -->
-    <div class="extension-toggle">
-      <label class="toggle-switch">
-        <input type="checkbox" id="sourceToggle">
-        <span class="toggle-slider"></span>
-      </label>
-      <span class="toggle-label">Source: <span id="currentSource">Wikipedia</span></span>
-    </div>
-    
     <div class="features">
       <div class="feature">
-        <i class="fas fa-highlighter"></i>
+        <div class="feature-icon">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75 1.84-1.83zM3 17.25V21h3.75L17.81 9.93l-3.75-3.75L3 17.25z" fill="currentColor"/>
+          </svg>
+        </div>
         <div class="feature-text">
           <h3>Highlight Text</h3>
           <p>Select any text to find info</p>
@@ -41,7 +35,11 @@
       </div>
       
       <div class="feature">
-        <i class="fas fa-mouse-pointer"></i>
+        <div class="feature-icon">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M11 7h2v2h-2zm0 4h2v6h-2zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z" fill="currentColor"/>
+          </svg>
+        </div>
         <div class="feature-text">
           <h3>Preview Content</h3>
           <p>Hover over links for quick info</p>
@@ -49,7 +47,11 @@
       </div>
       
       <div class="feature">
-        <i class="fas fa-project-diagram"></i>
+        <div class="feature-icon">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M4 10h3v7H4zm6.5 0h3v7h-3zM2 19h20v3H2zm15-9h3v7h-3zm-5-9L2 6v2h20V6z" fill="currentColor"/>
+          </svg>
+        </div>
         <div class="feature-text">
           <h3>Track Your Journey</h3>
           <p>See your exploration path</p>
@@ -58,7 +60,12 @@
     </div>
     
     <div class="footer">
-      <p>Made with <i class="fas fa-heart"></i> by RabbitHole</p>
+      <p>Made with 
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="vertical-align: middle;">
+          <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" fill="#FF5252"/>
+        </svg>
+        by RabbitHole
+      </p>
     </div>
   </div>
   <script src="popup.js"></script>
