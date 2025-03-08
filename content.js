@@ -2,7 +2,6 @@
 console.log("RabbitHole: Content script starting to load");
 
 // Global variables to track state
-let wikiTree = [];
 let currentNodeId = 0;
 let isInitialized = false;
 let isEnabled = true; // Default to enabled
@@ -12,6 +11,22 @@ const dictionaryCache = new Map();
 
 // Add this at the top with other global variables (around line 5)
 window.selectedSource = 'Wikipedia'; // Default to Wikipedia
+
+// Add these lines near the top, after the global variables
+let treeModule = null;
+
+// Initialize tree module
+async function initTreeModule() {
+  try {
+    treeModule = await import(chrome.runtime.getURL('tree.js'));
+    console.log("Tree module loaded successfully");
+  } catch (error) {
+    console.error("Failed to load tree module:", error);
+  }
+}
+
+// Call this during initialization
+initTreeModule();
 
 // Listen for messages from the popup
 chrome.runtime.onMessage.addListener(function(message, sender, sendResponse) {
@@ -23,9 +38,9 @@ chrome.runtime.onMessage.addListener(function(message, sender, sendResponse) {
   return true; // Keep the message channel open for async response
 });
 
-// Helper function to create a unique ID for each node in the tree
+// Replace the generateNodeId function with this stub that uses the tree module
 function generateNodeId() {
-  return currentNodeId++;
+  return treeModule ? treeModule.generateNodeId() : currentNodeId++;
 }
 
 // Function to fetch Wikipedia data
@@ -307,57 +322,99 @@ function removePopups() {
   });
 }
 
-// Function to create and show the expanded modal
+// Update the createExpandedModal function to use the tree module
 function createExpandedModal(data, nodeId = null) {
-  // Remove any existing modals
-  removeModals();
+  // Make sure tree module is loaded
+  if (!treeModule) {
+    console.error("Tree module not loaded yet");
+    return;
+  }
+  
+  // Check if we're coming from a wiki link inside an existing modal
+  const isInternalNavigation = nodeId === null && document.querySelector('.rabbithole-container');
+  
+  // Only remove modals if it's not internal navigation from within a modal
+  if (!isInternalNavigation) {
+    removeModals();
+  } else {
+    // Remove just the content, not the whole modal
+    const existingModalContent = document.querySelector('.rabbithole-modal');
+    if (existingModalContent) {
+      existingModalContent.remove();
+    }
+  }
   
   // If this is a new topic (not from tree), add it to the tree
   if (nodeId === null) {
-    nodeId = generateNodeId();
-    wikiTree.push({
-      id: nodeId,
-      title: data.title,
-      parentId: wikiTree.length > 0 ? wikiTree[wikiTree.length - 1].id : null
-    });
-    console.log("Added to tree:", data.title, "with parent:", wikiTree.length > 1 ? wikiTree[wikiTree.length - 2].title : "none");
+    // Check if we already have an active session
+    if (treeModule.wikiTree.length === 0) {
+      // This is the first node in a new session
+      nodeId = treeModule.addTreeNode(data.title, null);
+      console.log("Started new rabbithole session with root node:", data.title);
+    } else {
+      // This is a continuation of the current session
+      // Find the currently active node
+      const activeNodeId = treeModule.getActiveNodeId() || treeModule.wikiTree[0].id;
+      console.log("Active node for new content:", activeNodeId);
+      
+      // Add as a child of the active node
+      nodeId = treeModule.addTreeNode(data.title, activeNodeId);
+      console.log("Added node to tree:", data.title, "with parent:", treeModule.getNodeById(activeNodeId)?.title);
+    }
+    
+    // Set this node as the active one for future expansions
+    treeModule.setActiveNode(nodeId);
   }
   
-  // Create the container for both tree and modal
-  const container = document.createElement('div');
-  container.className = 'rabbithole-container';
-  container.style.position = 'fixed';
-  container.style.top = '0';
-  container.style.left = '0';
-  container.style.right = '0';
-  container.style.bottom = '0';
-  container.style.zIndex = '10001';
-  container.style.display = 'flex';
-  container.style.flexDirection = 'column';
-  container.style.alignItems = 'center';
-  container.style.justifyContent = 'center';
-  container.style.backgroundColor = 'rgba(0, 0, 0, 0.75)';
-  container.style.backdropFilter = 'blur(5px)';
+  // Get or create the container for both tree and modal
+  let container;
+  if (isInternalNavigation) {
+    container = document.querySelector('.rabbithole-container');
+  } else {
+    container = document.createElement('div');
+    container.className = 'rabbithole-container';
+    container.style.position = 'fixed';
+    container.style.top = '0';
+    container.style.left = '0';
+    container.style.right = '0';
+    container.style.bottom = '0';
+    container.style.zIndex = '10001';
+    container.style.display = 'flex';
+    container.style.flexDirection = 'column';
+    container.style.alignItems = 'center';
+    container.style.justifyContent = 'center';
+    container.style.backgroundColor = 'rgba(0, 0, 0, 0.75)';
+    container.style.backdropFilter = 'blur(5px)';
+  }
   
-  // Create the tree visualization
-  const treeContainer = document.createElement('div');
-  treeContainer.className = 'rabbithole-tree-container';
-  
-  // Add tree title
-  const treeTitle = document.createElement('h3');
-  treeTitle.textContent = 'Your Rabbit Hole Journey';
-  treeContainer.appendChild(treeTitle);
-  
-  // Add tree visualization
-  const treeVisualization = document.createElement('div');
-  treeVisualization.className = 'rabbithole-tree';
-  
-  // Generate GitHub-style tree HTML
-  const treeHTML = generateTreeHTML();
-  console.log("Tree HTML generated:", treeHTML.substring(0, 100) + "...");
-  treeVisualization.innerHTML = treeHTML;
-  
-  treeContainer.appendChild(treeVisualization);
+  // Create or update the tree visualization
+  let treeContainer;
+  if (isInternalNavigation) {
+    // Update existing tree
+    treeContainer = container.querySelector('.rabbithole-tree-container');
+    const treeVisualization = treeContainer.querySelector('.rabbithole-tree');
+    treeVisualization.innerHTML = treeModule.generateTreeHTML();
+  } else {
+    // Create new tree container
+    treeContainer = document.createElement('div');
+    treeContainer.className = 'rabbithole-tree-container';
+    
+    // Add tree title
+    const treeTitle = document.createElement('h3');
+    treeTitle.textContent = 'Your Rabbit Hole Journey';
+    treeContainer.appendChild(treeTitle);
+    
+    // Add tree visualization
+    const treeVisualization = document.createElement('div');
+    treeVisualization.className = 'rabbithole-tree';
+    
+    // Generate tree HTML
+    const treeHTML = treeModule.generateTreeHTML();
+    treeVisualization.innerHTML = treeHTML;
+    
+    treeContainer.appendChild(treeVisualization);
+    container.appendChild(treeContainer);
+  }
   
   // Create the modal element
   const modal = document.createElement('div');
@@ -388,134 +445,79 @@ function createExpandedModal(data, nodeId = null) {
   modal.innerHTML = modalContent;
   
   // Add components to the container
-  container.appendChild(treeContainer);
   container.appendChild(modal);
   
-  // Add to the DOM
-  document.body.appendChild(container);
+  // Add to the DOM if it's a new modal
+  if (!isInternalNavigation) {
+    document.body.appendChild(container);
+  }
   
-  // Process the tree visualization links with a delay to ensure DOM is ready
-  setTimeout(() => {
-    console.log("Setting up tree node click handlers");
-    const treeNodes = container.querySelectorAll('.branch-node');
-    console.log("Found tree nodes:", treeNodes.length);
-    
-    treeNodes.forEach(node => {
-      node.addEventListener('click', async function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        
-        const nodeId = parseInt(node.dataset.nodeId);
-        const nodeInfo = wikiTree.find(item => item.id === nodeId);
-        
-        console.log("Tree node clicked:", nodeInfo?.title);
-        
-        if (nodeInfo) {
-          const data = await fetchData(nodeInfo.title);
-          if (data) {
-            // Remove the current container
-            container.remove();
-            // Create a new modal with the selected node
-            createExpandedModal(data, nodeId);
-          }
-        }
-      });
-    });
-  }, 200);
+  // Process the article content
+  processArticleContent(data.title, modal.querySelector('.rabbithole-article-content'));
   
-  // Fetch the full article and process its content
-  processArticleContent(data.title, container.querySelector('.rabbithole-article-content'));
-  
-  // Add back the close button event listener for the modal
-  container.querySelector('.rabbithole-modal-close-btn').addEventListener('click', function() {
+  // Add the close button event listener for the modal
+  modal.querySelector('.rabbithole-modal-close-btn').addEventListener('click', function() {
+    // Clear the tree data before removing the modal
+    if (treeModule) {
+      treeModule.clearTree();
+      console.log("Tree cleared on modal close");
+    }
     container.remove();
   });
+  
+  // Update the node click handler
+  setTimeout(() => {
+    console.log("Setting up tree node click handlers");
+    
+    // Use the tree module's handler setup
+    treeModule.setupTreeNodeHandlers(container, async (nodeInfo, nodeId) => {
+      console.log("Tree node clicked:", nodeInfo.title);
+      
+      // Load the content for this node, but don't recreate the modal
+      const data = await fetchWikipediaData(nodeInfo.title);
+      if (data) {
+        // Update the modal content without recreating it
+        container.querySelector('.rabbithole-modal-header h2').textContent = data.title;
+        
+        const contentArea = container.querySelector('.rabbithole-article-content');
+        contentArea.innerHTML = `
+          <div class="rabbithole-loading">
+            <div class="loading-spinner"></div>
+            <p>Loading article...</p>
+          </div>
+        `;
+        
+        // Reuse the existing modal but update its content
+        await processArticleContent(data.title, contentArea);
+        
+        // If there's a thumbnail, update it
+        const thumbnailContainer = container.querySelector('.rabbithole-modal-thumbnail');
+        if (thumbnailContainer && data.thumbnail) {
+          thumbnailContainer.src = data.thumbnail;
+        }
+        
+        // Update the tree visualization to reflect the active node change
+        const treeVisualization = container.querySelector('.rabbithole-tree');
+        if (treeVisualization) {
+          treeVisualization.innerHTML = treeModule.generateTreeHTML();
+        }
+      }
+    });
+  }, 100);
   
   return container;
 }
 
 // Function to remove all modals
 function removeModals() {
+  // Clear the tree data
+  if (treeModule) {
+    treeModule.clearTree();
+    console.log("Tree cleared in removeModals");
+  }
+  
   const containers = document.querySelectorAll('.rabbithole-container');
   containers.forEach(container => container.remove());
-}
-
-// Function to generate the HTML for the tree
-function generateTreeHTML() {
-  if (wikiTree.length === 0) {
-    return '<p class="empty-tree-message">Your journey starts here. Explore related topics to build your tree!</p>';
-  }
-  
-  console.log("Generating tree with", wikiTree.length, "nodes");
-  
-  // Create a map for quick lookup of children
-  const childrenMap = {};
-  wikiTree.forEach(node => {
-    if (node.parentId !== null) {
-      if (!childrenMap[node.parentId]) {
-        childrenMap[node.parentId] = [];
-      }
-      childrenMap[node.parentId].push(node);
-    }
-  });
-  
-  // Find root nodes (no parent)
-  const rootNodes = wikiTree.filter(node => node.parentId === null);
-  
-  // Start the tree HTML
-  let html = '<div class="github-tree">';
-  
-  // Recursive function to build the tree
-  function buildTreeHTML(node, depth = 0, isLastChild = false) {
-    const children = childrenMap[node.id] || [];
-    const hasChildren = children.length > 0;
-    
-    // Sort children by their ID to maintain chronological order
-    const sortedChildren = children.sort((a, b) => a.id - b.id);
-    
-    let nodeHtml = `
-      <div class="tree-branch" style="--depth: ${depth};">
-        <div class="branch-graphics">
-    `;
-    
-    // Add the connecting lines
-    if (depth > 0) {
-      nodeHtml += `<div class="branch-line-horizontal"></div>`;
-    }
-    
-    // Add the node
-    nodeHtml += `
-          <div class="branch-node ${hasChildren ? 'has-children' : ''}" data-node-id="${node.id}">
-            <span class="branch-label">${node.title}</span>
-          </div>
-        </div>
-    `;
-    
-    // Add children if any
-    if (hasChildren) {
-      nodeHtml += '<div class="branch-children">';
-      
-      sortedChildren.forEach((child, index) => {
-        const isLast = index === sortedChildren.length - 1;
-        nodeHtml += buildTreeHTML(child, depth + 1, isLast);
-      });
-      
-      nodeHtml += '</div>';
-    }
-    
-    nodeHtml += '</div>';
-    
-    return nodeHtml;
-  }
-  
-  // Build the tree starting from root nodes
-  rootNodes.forEach((rootNode, index) => {
-    const isLast = index === rootNodes.length - 1;
-    html += buildTreeHTML(rootNode, 0, isLast);
-  });
-  
-  html += '</div>';
-  return html;
 }
 
 // Function to fetch the full article
@@ -815,7 +817,7 @@ function processWikiLinks(element) {
               removePopups();
             });
             
-            // Add click event handler
+            // Update the link click handler
             link.addEventListener('click', async function(e) {
               console.log("Wiki link clicked:", this.getAttribute('data-wiki-title'));
               e.preventDefault();
@@ -839,7 +841,8 @@ function processWikiLinks(element) {
                 
                 if (data) {
                   console.log("Wiki link data retrieved, opening modal");
-                  // Create new modal with the data
+                  // Create new modal with the data, but don't pass a nodeId
+                  // This will cause a new node to be added as a child of the current active node
                   createExpandedModal(data);
                 } else {
                   console.error("No data returned for:", title);
@@ -956,6 +959,11 @@ function initRabbitHole() {
   
   console.log("Initializing RabbitHole extension...");
   isInitialized = true;
+  
+  // Load the tree module
+  initTreeModule().then(() => {
+    console.log("Tree module initialized for extension");
+  });
   
   // Check if the extension is enabled in storage
   chrome.storage.sync.get(['rabbitHoleEnabled', 'selectedSource'], function(data) {

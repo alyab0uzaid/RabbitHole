@@ -21,5 +21,11 @@
         "js": ["content.js"],
         "css": ["styles.css"]
       }
+    ],
+    "web_accessible_resources": [
+      {
+        "resources": ["tree.js"],
+        "matches": ["<all_urls>"]
+      }
     ]
   }

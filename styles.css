@@ -183,21 +183,25 @@ body {
 
 /* Tree Container Styles */
 .rabbithole-tree-container {
+  background-color: rgba(255, 255, 255, 0.95) !important;
+  border-radius: var(--border-radius) !important;
+  padding: 15px !important;
+  margin-bottom: 20px !important;
   width: 90% !important;
-  max-width: 1200px !important;
-  background-color: var(--background-light) !important;
-  border-radius: var(--border-radius-md) var(--border-radius-md) 0 0 !important;
-  padding: 20px !important;
-  margin-bottom: 0 !important;
-  border-bottom: 1px solid var(--gray-medium) !important;
+  max-width: 1000px !important;
   box-shadow: var(--shadow-medium) !important;
+  max-height: 350px !important;
+  overflow-x: auto !important;
+  overflow-y: auto !important;
 }
 
 .rabbithole-tree-container h3 {
+  margin-top: 0 !important;
   margin-bottom: 15px !important;
-  color: var(--primary-color) !important;
-  font-weight: 600 !important;
+  color: var(--text-primary) !important;
+  font-weight: 700 !important;
   font-size: 18px !important;
+  text-align: center !important;
 }
 
 .rabbithole-tree {
@@ -1167,4 +1171,114 @@ input:checked + .toggle-slider:before {
   border-radius: 50%;
   margin-right: 10px;
   font-size: 14px;
+}
+
+/* Improved horizontal tree */
+.horizontal-tree {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  padding: 15px;
+  width: 100%;
+  background-color: #f8f9fa;
+  border-radius: 4px;
+  margin-bottom: 15px;
+  max-width: 100%;
+  scrollbar-width: thin;
+  scrollbar-color: #dadce0 #f8f9fa;
+}
+
+.horizontal-tree::-webkit-scrollbar {
+  height: 8px;
+}
+
+.horizontal-tree::-webkit-scrollbar-track {
+  background: #f8f9fa;
+}
+
+.horizontal-tree::-webkit-scrollbar-thumb {
+  background-color: #dadce0;
+  border-radius: 10px;
+}
+
+/* Tree nodes */
+.tree-node {
+  flex: 0 0 auto;
+  margin: 0 5px;
+}
+
+/* Node content */
+.node-content {
+  display: flex;
+  align-items: center;
+  background-color: #e8f0fe;
+  border: 1px solid #4285f4;
+  border-radius: 20px;
+  padding: 8px 15px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+  min-width: 80px;
+  max-width: 200px;
+  white-space: nowrap;
+}
+
+.node-content:hover {
+  background-color: #d2e3fc;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Node title */
+.node-title {
+  font-size: 14px;
+  font-weight: 400;
+  color: #1a73e8;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Active node styling */
+.tree-node.active-node .node-content {
+  background-color: #4285f4;
+}
+
+.tree-node.active-node .node-title {
+  color: white;
+  font-weight: 500;
+}
+
+/* Arrow between nodes */
+.tree-arrow {
+  font-size: 18px;
+  color: #5f6368;
+  margin: 0 5px;
+  flex-shrink: 0;
+}
+
+/* Tree container styling */
+.rabbithole-tree-container {
+  width: 100%;
+  padding: 10px;
+  max-width: 100%;
+  overflow: hidden;
+  margin-bottom: 15px;
+}
+
+.rabbithole-tree-container h3 {
+  text-align: center;
+  font-size: 16px;
+  font-weight: 500;
+  margin: 0 0 10px 0;
+  color: white;
+}
+
+/* Empty tree message */
+.empty-tree-message {
+  text-align: center;
+  color: #5f6368;
+  font-style: italic;
+  padding: 20px;
+  width: 100%;
 }
