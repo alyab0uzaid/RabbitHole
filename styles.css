@@ -103,6 +103,11 @@ body {
   padding: 16px 20px !important;
   background-color: var(--primary-color) !important;
   color: white !important;
+  cursor: pointer !important;
+}
+
+.rabbithole-header:hover {
+  background-color: var(--primary-dark) !important;
 }
 
 .rabbithole-header h3 {
@@ -814,4 +819,14 @@ input:checked + .toggle-slider:before {
   15% { opacity: 1; transform: translate(-50%, 0); }
   85% { opacity: 1; transform: translate(-50%, 0); }
   100% { opacity: 0; transform: translate(-50%, -10px); }
+}
+
+/* Add animation for popup fade-out */
+@keyframes popup-fadeout {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(10px); }
+}
+
+.rabbithole-popup-fadeout {
+  animation: popup-fadeout 0.2s ease-out forwards !important;
 }

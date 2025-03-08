@@ -71,7 +71,7 @@ async function fetchWikipediaData(term) {
 }
 
 // Function to create and show the popup
-function createPopup(data, position, isTreeNode = false, nodeId = null) {
+function createPopup(data, position, isTreeNode = false, nodeId = null, sourceElement = null) {
   // Remove any existing popups
   removePopups();
   
@@ -83,11 +83,16 @@ function createPopup(data, position, isTreeNode = false, nodeId = null) {
   popup.style.top = `${position.y}px`;
   popup.style.zIndex = '10000';
   
-  // Create the content
+  // Store reference to the source element
+  if (sourceElement) {
+    popup.dataset.sourceElementId = Date.now() + Math.random().toString(36).substring(2, 9);
+    sourceElement.dataset.popupId = popup.dataset.sourceElementId;
+  }
+  
+  // Create the content - remove the expand button
   let popupContent = `
     <div class="rabbithole-header">
       <h3>${data.title}</h3>
-      <button class="rabbithole-expand-btn">Expand</button>
       <button class="rabbithole-close-btn">×</button>
     </div>
     <div class="rabbithole-content">
@@ -107,16 +112,41 @@ function createPopup(data, position, isTreeNode = false, nodeId = null) {
   popup.innerHTML = popupContent;
   
   // Add event listeners
-  popup.querySelector('.rabbithole-close-btn').addEventListener('click', function() {
+  popup.querySelector('.rabbithole-close-btn').addEventListener('click', function(e) {
+    e.stopPropagation(); // Prevent event from bubbling to header
     popup.remove();
   });
   
-  popup.querySelector('.rabbithole-expand-btn').addEventListener('click', function() {
+  // Make the header clickable to expand
+  popup.querySelector('.rabbithole-header').addEventListener('click', function() {
     // Remove the popup
     popup.remove();
     
     // Create the expanded modal
     createExpandedModal(data, isTreeNode ? nodeId : null);
+  });
+  
+  // Make the entire popup clickable to expand (optional - uncomment if you want the whole popup to be clickable)
+  /*
+  popup.addEventListener('click', function() {
+    // Remove the popup
+    popup.remove();
+    
+    // Create the expanded modal
+    createExpandedModal(data, isTreeNode ? nodeId : null);
+  });
+  */
+  
+  // Add mouseenter/mouseleave events to the popup itself
+  popup.addEventListener('mouseenter', function() {
+    // Keep the popup visible when mouse is over it
+    this.dataset.isHovered = 'true';
+  });
+  
+  popup.addEventListener('mouseleave', function() {
+    // Remove popup when mouse leaves
+    this.dataset.isHovered = 'false';
+    removePopups();
   });
   
   // Add to the DOM
@@ -127,8 +157,23 @@ function createPopup(data, position, isTreeNode = false, nodeId = null) {
 
 // Function to remove all popups
 function removePopups() {
+  // Get all popups
   const popups = document.querySelectorAll('.rabbithole-popup');
-  popups.forEach(popup => popup.remove());
+  
+  popups.forEach(popup => {
+    // Only remove the popup if it's not being hovered
+    if (popup.dataset.isHovered !== 'true') {
+      // Add the fadeout animation class
+      popup.classList.add('rabbithole-popup-fadeout');
+      
+      // Remove the popup after animation completes
+      setTimeout(() => {
+        if (document.body.contains(popup)) {
+          popup.remove();
+        }
+      }, 200); // Match the animation duration
+    }
+  });
 }
 
 // Function to create and show the expanded modal
@@ -771,11 +816,13 @@ function processWikiLinks(element) {
               this.innerHTML = `<span class="link-loading">Loading...</span>`;
               
               try {
+                console.log("Wiki link clicked, fetching data for:", title);
                 const data = await fetchWikipediaData(title);
                 // Restore original text
                 this.innerHTML = originalText;
                 
                 if (data) {
+                  console.log("Wiki link data retrieved, opening modal");
                   // Create new modal with the data
                   createExpandedModal(data);
                 } else {
@@ -812,7 +859,7 @@ function processWikiLinks(element) {
                 try {
                   const data = await fetchWikipediaData(title);
                   if (data) {
-                    createPopup(data, position);
+                    createPopup(data, position, false, null, this);
                   }
                 } catch (error) {
                   console.error("Error showing hover preview:", error);
@@ -820,12 +867,13 @@ function processWikiLinks(element) {
               }, 300);
             });
             
-            // Clear timeout if mouse leaves before the delay
+            // Add explicit mouseleave event to remove popup and clear timeout
             link.addEventListener('mouseleave', function() {
               if (this.hoverTimeout) {
                 clearTimeout(this.hoverTimeout);
                 this.hoverTimeout = null;
               }
+              removePopups();
             });
           } 
           // 2. Handle reference/citation links
@@ -988,19 +1036,21 @@ function initRabbitHole() {
             
             // Add hover event to show popup
             wrapper.addEventListener('mouseenter', function(e) {
-              // Don't show popup if disabled
-              if (!isEnabled) return;
-              
               const rect = wrapper.getBoundingClientRect();
               const position = {
                 x: rect.left + window.scrollX,
                 y: rect.bottom + window.scrollY
               };
               
-              createPopup(data, position);
+              createPopup(data, position, false, null, this); // Pass the wrapper element as the fifth parameter
             });
             
-            // Add click event to show expanded modal
+            // Add mouseleave event to remove popup
+            wrapper.addEventListener('mouseleave', function(e) {
+              removePopups();
+            });
+            
+            // Make sure the click event is properly set up
             wrapper.addEventListener('click', function(e) {
               // Don't show modal if disabled
               if (!isEnabled) return;
@@ -1008,6 +1058,7 @@ function initRabbitHole() {
               e.preventDefault();
               e.stopPropagation();
               
+              console.log("Link clicked, creating modal");
               createExpandedModal(data);
             });
           } else {
