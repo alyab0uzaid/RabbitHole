@@ -1,3 +1,6 @@
+// Add at the beginning of the file
+console.log("RabbitHole: Content script starting to load");
+
 // Global variables to track state
 let wikiTree = [];
 let currentNodeId = 0;
@@ -751,9 +754,7 @@ function processWikiLinks(element) {
           
           if (!originalHref) return;
           
-          // Handle different types of links
-          
-          // 1. Regular Wikipedia article links
+          // Check if it's an internal Wikipedia link
           if ((originalHref.startsWith('/wiki/') || originalHref.includes('wikipedia.org/wiki/')) && 
               // Exclude special pages, references, anchors, etc.
               !originalHref.includes('#cite_note') && 
@@ -789,15 +790,71 @@ function processWikiLinks(element) {
             // Store original URL for backup access
             link.setAttribute('data-original-url', originalURL);
             
-            // Add styling
-            link.classList.add('rabbithole-wiki-internal-link');
-            
-            // Remove any existing click handlers
+            // Create a clean version of the link to avoid existing event handlers
             const newLink = link.cloneNode(true);
             if (link.parentNode) {
               link.parentNode.replaceChild(newLink, link);
               link = newLink;
             }
+            
+            // Now style the link to match highlighted links
+            link.className = 'rabbithole-link';
+            link.style.color = '#3a5ccc'; // explicit primary color
+            link.style.textDecoration = 'underline';
+            link.style.cursor = 'pointer';
+            link.style.backgroundColor = 'rgba(58, 92, 204, 0.08)';
+            link.style.borderRadius = '3px';
+            link.style.padding = '0 3px';
+            link.style.transition = 'all 0.2s ease';
+            
+            // Add hover effects
+            link.addEventListener('mouseenter', function() {
+              this.style.backgroundColor = 'rgba(58, 92, 204, 0.15)';
+            });
+            
+            link.addEventListener('mouseleave', function() {
+              this.style.backgroundColor = 'rgba(58, 92, 204, 0.08)';
+            });
+            
+            // Add hover tooltip event
+            link.addEventListener('mouseenter', function(e) {
+              const title = this.getAttribute('data-wiki-title');
+              if (!title) return;
+              
+              // Don't fetch if extension is disabled
+              if (!isEnabled) return;
+              
+              // Skip if there's already a popup
+              const existingPopup = document.querySelector('.rabbithole-popup');
+              if (existingPopup) return;
+              
+              // Set timeout to prevent too many requests on quick mouse movements
+              this.hoverTimeout = setTimeout(async () => {
+                const rect = this.getBoundingClientRect();
+                const position = {
+                  x: rect.left + window.scrollX,
+                  y: rect.bottom + window.scrollY
+                };
+                
+                try {
+                  const data = await fetchWikipediaData(title);
+                  if (data) {
+                    createPopup(data, position, false, null, this);
+                  }
+                } catch (error) {
+                  console.error("Error showing hover preview:", error);
+                }
+              }, 300);
+            });
+            
+            // Add explicit mouseleave event to remove popup
+            link.addEventListener('mouseleave', function() {
+              if (this.hoverTimeout) {
+                clearTimeout(this.hoverTimeout);
+                this.hoverTimeout = null;
+              }
+              removePopups();
+            });
             
             // Add click event handler
             link.addEventListener('click', async function(e) {
@@ -838,45 +895,8 @@ function processWikiLinks(element) {
                 window.open(this.getAttribute('data-original-url'), '_blank');
               }
             });
-            
-            // Add hover tooltip event
-            link.addEventListener('mouseenter', function(e) {
-              const title = this.getAttribute('data-wiki-title');
-              if (!title) return;
-              
-              // Don't fetch if we're already showing a popup
-              const existingPopup = document.querySelector('.rabbithole-popup');
-              if (existingPopup) return;
-              
-              // Set timeout to prevent too many requests on quick mouse movements
-              this.hoverTimeout = setTimeout(async () => {
-                const rect = this.getBoundingClientRect();
-                const position = {
-                  x: rect.left + window.scrollX,
-                  y: rect.bottom + window.scrollY
-                };
-                
-                try {
-                  const data = await fetchWikipediaData(title);
-                  if (data) {
-                    createPopup(data, position, false, null, this);
-                  }
-                } catch (error) {
-                  console.error("Error showing hover preview:", error);
-                }
-              }, 300);
-            });
-            
-            // Add explicit mouseleave event to remove popup and clear timeout
-            link.addEventListener('mouseleave', function() {
-              if (this.hoverTimeout) {
-                clearTimeout(this.hoverTimeout);
-                this.hoverTimeout = null;
-              }
-              removePopups();
-            });
           } 
-          // 2. Handle reference/citation links
+          // Handle reference/citation links
           else if (originalHref.includes('#cite_') || 
                    originalHref.match(/\/wiki\/(File|Special|Help|Category|Talk|Template|Wikipedia):/i)) {
             
@@ -900,7 +920,7 @@ function processWikiLinks(element) {
             link.setAttribute('rel', 'noopener noreferrer');
             link.classList.add('rabbithole-special-link');
           }
-          // 3. Handle external links (non-Wikipedia)
+          // Handle external links (non-Wikipedia)
           else if (link.href && !link.href.startsWith('javascript:')) {
             // Check if this might be an incorrectly formed internal link (like NASA.com/wiki/...)
             if (originalHref.includes('/wiki/') && !originalHref.includes('wikipedia.org')) {
@@ -918,7 +938,7 @@ function processWikiLinks(element) {
               link.setAttribute('href', 'javascript:void(0)');
               
               // Add styling
-              link.classList.add('rabbithole-wiki-internal-link');
+              link.classList.add('rabbithole-link');
               link.classList.add('rabbithole-fixed-link');
               
               // Add click handler that attempts to find the Wikipedia article
@@ -1026,9 +1046,24 @@ function initRabbitHole() {
             const wrapper = document.createElement('span');
             wrapper.className = 'rabbithole-link';
             wrapper.textContent = selectedText;
-            wrapper.style.color = 'blue';
+            
+            // Apply explicit styling
+            wrapper.style.color = '#3a5ccc'; // explicit primary color
             wrapper.style.textDecoration = 'underline';
             wrapper.style.cursor = 'pointer';
+            wrapper.style.backgroundColor = 'rgba(58, 92, 204, 0.08)';
+            wrapper.style.borderRadius = '3px';
+            wrapper.style.padding = '0 3px';
+            wrapper.style.transition = 'all 0.2s ease';
+            
+            // Add hover effects
+            wrapper.addEventListener('mouseenter', function() {
+              this.style.backgroundColor = 'rgba(58, 92, 204, 0.15)';
+            });
+            
+            wrapper.addEventListener('mouseleave', function() {
+              this.style.backgroundColor = 'rgba(58, 92, 204, 0.08)';
+            });
             
             // Replace the selected text with the wrapper span
             range.deleteContents();
@@ -1086,3 +1121,12 @@ document.addEventListener('DOMContentLoaded', initRabbitHole);
 setTimeout(initRabbitHole, 1000);
 
 console.log("RabbitHole content script loaded");
+
+// Add at the end of the file to ensure script is running
+// Make sure it's loaded
+setTimeout(() => {
+  console.log("RabbitHole: Delayed check - content script loaded and running");
+  const styles = window.getComputedStyle(document.documentElement);
+  const primaryColor = styles.getPropertyValue('--primary-color').trim();
+  console.log("RabbitHole: CSS Variable check - primary color is", primaryColor);
+}, 2000);
