@@ -1,43 +1,586 @@
-.wiki-highlight {
-    background-color: yellow;
-    cursor: pointer;
-    border-bottom: 1px dotted blue;
-  }
-  
-  .wiki-tooltip {
-    background-color: white;
-    border: 1px solid #ccc;
-    box-shadow: 2px 2px 5px rgba(0,0,0,0.3);
-    padding: 10px;
-    border-radius: 4px;
-    max-width: 300px;
-    z-index: 10000;
-    font-family: Arial, sans-serif;
-    font-size: 14px;
-    line-height: 1.4;
-    display: none;
-  }
-  
-  .loading {
-    background-image: linear-gradient(
-      45deg,
-      yellow 25%,
-      #ffee99 25%,
-      #ffee99 50%,
-      yellow 50%,
-      yellow 75%,
-      #ffee99 75%,
-      #ffee99
-    );
-    background-size: 20px 20px;
-    animation: move 1s linear infinite;
-  }
-  
-  @keyframes move {
-    0% {
-      background-position: 0 0;
-    }
-    100% {
-      background-position: 20px 0;
-    }
-  }
+/* General Styles */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Inter', 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+  line-height: 1.5;
+  color: #333;
+}
+
+/* Popup Styles */
+.popup-container {
+  width: 320px;
+  padding: 24px;
+  background-color: #fff;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+}
+
+.title {
+  font-size: 24px;
+  margin-bottom: 16px;
+  color: #0550ae;
+  text-align: center;
+  font-weight: 700;
+}
+
+.description {
+  margin-bottom: 24px;
+  text-align: center;
+  font-size: 14px;
+  color: #5c5c5c;
+}
+
+.instructions {
+  background-color: #f8f9fa;
+  padding: 18px;
+  border-radius: 10px;
+  margin-bottom: 20px;
+  border: 1px solid #eaeaea;
+}
+
+.instructions h2 {
+  font-size: 18px;
+  margin-bottom: 12px;
+  color: #0550ae;
+  font-weight: 600;
+}
+
+.instructions ol {
+  padding-left: 24px;
+  font-size: 14px;
+}
+
+.instructions li {
+  margin-bottom: 8px;
+  color: #444;
+}
+
+.footer {
+  font-size: 12px;
+  text-align: center;
+  color: #777;
+  margin-top: 20px;
+  padding-top: 15px;
+  border-top: 1px solid #eaeaea;
+}
+
+/* Content Script Styles */
+.rabbithole-link {
+  color: #0550ae !important;
+  text-decoration: underline !important;
+  cursor: pointer !important;
+  background-color: rgba(5, 80, 174, 0.08) !important;
+  border-radius: 3px !important;
+  padding: 0 3px !important;
+  transition: all 0.2s ease !important;
+}
+
+.rabbithole-link:hover {
+  background-color: rgba(5, 80, 174, 0.15) !important;
+}
+
+.rabbithole-popup {
+  width: 350px !important;
+  background-color: white !important;
+  border-radius: 12px !important;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15) !important;
+  overflow: hidden !important;
+  max-height: 420px !important;
+  z-index: 10000 !important;
+  border: 1px solid #eee !important;
+  animation: popup-appear 0.3s ease-out !important;
+}
+
+@keyframes popup-appear {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.rabbithole-header {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  padding: 14px 18px !important;
+  background-color: #0550ae !important;
+  color: white !important;
+}
+
+.rabbithole-header h3 {
+  margin: 0 !important;
+  font-size: 16px !important;
+  font-weight: 600 !important;
+  flex-grow: 1 !important;
+}
+
+.rabbithole-expand-btn,
+.rabbithole-close-btn {
+  background: none !important;
+  border: none !important;
+  color: white !important;
+  cursor: pointer !important;
+  font-size: 14px !important;
+  margin-left: 12px !important;
+  transition: all 0.2s ease !important;
+}
+
+.rabbithole-expand-btn {
+  background-color: rgba(255, 255, 255, 0.2) !important;
+  padding: 6px 12px !important;
+  border-radius: 6px !important;
+  font-weight: 500 !important;
+}
+
+.rabbithole-expand-btn:hover {
+  background-color: rgba(255, 255, 255, 0.3) !important;
+}
+
+.rabbithole-close-btn {
+  font-size: 20px !important;
+  opacity: 0.8 !important;
+}
+
+.rabbithole-close-btn:hover {
+  opacity: 1 !important;
+}
+
+.rabbithole-content {
+  padding: 18px !important;
+  max-height: 350px !important;
+  overflow-y: auto !important;
+  line-height: 1.6 !important;
+}
+
+.rabbithole-thumbnail {
+  float: right !important;
+  max-width: 120px !important;
+  margin-left: 15px !important;
+  margin-bottom: 15px !important;
+  border-radius: 8px !important;
+  border: 1px solid #eee !important;
+}
+
+/* Container Styles */
+.rabbithole-container {
+  background-color: rgba(0, 0, 0, 0.75) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  backdrop-filter: blur(5px) !important;
+  -webkit-backdrop-filter: blur(5px) !important;
+  animation: container-appear 0.4s ease-out !important;
+}
+
+@keyframes container-appear {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Tree Container Styles */
+.rabbithole-tree-container {
+  width: 90% !important;
+  max-width: 1200px !important;
+  background-color: white !important;
+  border-radius: 12px 12px 0 0 !important;
+  padding: 20px !important;
+  margin-bottom: 0 !important;
+  border-bottom: 1px solid #eee !important;
+}
+
+.rabbithole-tree-container h3 {
+  margin-bottom: 15px !important;
+  color: #0550ae !important;
+  font-weight: 600 !important;
+  font-size: 18px !important;
+}
+
+.rabbithole-tree {
+  height: 180px !important;
+  overflow-y: auto !important;
+  padding: 15px !important;
+  background-color: #f8f9fa !important;
+  border-radius: 8px !important;
+  border: 1px solid #eee !important;
+}
+
+/* GitHub Tree Styles */
+.github-tree {
+  position: relative !important;
+  font-family: 'Inter', sans-serif !important;
+  padding: 20px !important;
+  width: 100% !important;
+}
+
+.empty-tree-message {
+  color: #777 !important;
+  text-align: center !important;
+  padding: 30px !important;
+  font-style: italic !important;
+}
+
+.tree-branch {
+  position: relative !important;
+  margin-bottom: 8px !important;
+  padding-left: calc(var(--depth) * 28px) !important;
+}
+
+.branch-graphics {
+  position: relative !important;
+  display: flex !important;
+  align-items: center !important;
+}
+
+.branch-line-horizontal {
+  position: absolute !important;
+  left: -16px !important;
+  width: 16px !important;
+  height: 2px !important;
+  background-color: #0550ae !important;
+}
+
+.branch-node {
+  position: relative !important;
+  background-color: #f1f6fd !important;
+  border: 1px solid #d0e3ff !important;
+  border-radius: 6px !important;
+  padding: 8px 12px !important;
+  margin: 4px 0 !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+  display: inline-flex !important;
+  z-index: 2 !important;
+}
+
+.branch-node:hover {
+  background-color: #e1eeff !important;
+  border-color: #abc9f8 !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 2px 5px rgba(5, 80, 174, 0.1) !important;
+}
+
+.branch-node.has-children::before {
+  content: "" !important;
+  position: absolute !important;
+  left: 50% !important;
+  bottom: -10px !important;
+  width: 2px !important;
+  height: 10px !important;
+  background-color: #0550ae !important;
+  z-index: 1 !important;
+}
+
+.branch-label {
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  max-width: 200px !important;
+  color: #0550ae !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+}
+
+.branch-children {
+  position: relative !important;
+  margin-top: 10px !important;
+}
+
+.branch-children::before {
+  content: "" !important;
+  position: absolute !important;
+  left: calc(var(--depth) * 28px - 28px + 1px) !important;
+  top: -10px !important;
+  bottom: 15px !important;
+  width: 2px !important;
+  background-color: #0550ae !important;
+  z-index: 1 !important;
+}
+
+/* Modal Styles */
+.rabbithole-modal {
+  width: 90% !important;
+  max-width: 1200px !important;
+  height: calc(90% - 220px) !important;
+  background-color: white !important;
+  border-radius: 0 0 12px 12px !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1) !important;
+}
+
+.rabbithole-modal-header {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  padding: 18px 24px !important;
+  border-bottom: 1px solid #eee !important;
+  background-color: #f8f9fa !important;
+}
+
+.rabbithole-modal-header h2 {
+  margin: 0 !important;
+  font-size: 22px !important;
+  color: #0550ae !important;
+  font-weight: 600 !important;
+}
+
+.rabbithole-modal-close-btn {
+  background: none !important;
+  border: none !important;
+  color: #777 !important;
+  cursor: pointer !important;
+  font-size: 26px !important;
+  width: 36px !important;
+  height: 36px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-radius: 50% !important;
+  transition: all 0.2s ease !important;
+}
+
+.rabbithole-modal-close-btn:hover {
+  background-color: rgba(0, 0, 0, 0.05) !important;
+  color: #333 !important;
+}
+
+.rabbithole-modal-body {
+  padding: 24px !important;
+  overflow-y: auto !important;
+  flex-grow: 1 !important;
+  background-color: white !important;
+}
+
+.rabbithole-modal-thumbnail {
+  float: right !important;
+  max-width: 240px !important;
+  margin-left: 25px !important;
+  margin-bottom: 25px !important;
+  border-radius: 10px !important;
+  border: 1px solid #eee !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05) !important;
+}
+
+.rabbithole-article-content {
+  line-height: 1.7 !important;
+  color: #333 !important;
+  font-size: 15px !important;
+}
+
+.rabbithole-article-content h1, 
+.rabbithole-article-content h2, 
+.rabbithole-article-content h3 {
+  margin-top: 24px !important;
+  margin-bottom: 16px !important;
+  color: #0550ae !important;
+  font-weight: 600 !important;
+}
+
+.rabbithole-article-content p {
+  margin-bottom: 16px !important;
+}
+
+.rabbithole-article-content a {
+  color: #0550ae !important;
+  text-decoration: none !important;
+  border-bottom: 1px solid transparent !important;
+  transition: all 0.2s ease !important;
+}
+
+.rabbithole-article-content a:hover {
+  border-bottom: 1px solid #0550ae !important;
+}
+
+.rabbithole-article-content .loading {
+  color: #777 !important;
+  font-style: italic !important;
+  text-align: center !important;
+  padding: 40px !important;
+}
+
+.rabbithole-wiki-link {
+  text-align: right !important;
+  margin-bottom: 20px !important;
+  font-style: normal !important;
+  font-size: 13px !important;
+}
+
+.rabbithole-wiki-link a {
+  color: #0550ae !important;
+  text-decoration: none !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  padding: 6px 12px !important;
+  background-color: #f1f6fd !important;
+  border-radius: 6px !important;
+  transition: all 0.2s ease !important;
+}
+
+.rabbithole-wiki-link a:hover {
+  background-color: #e1eeff !important;
+  text-decoration: none !important;
+}
+
+/* Table styles */
+.rabbithole-article-content table {
+  border-collapse: collapse !important;
+  margin: 20px 0 !important;
+  width: 100% !important;
+  border: 1px solid #e5e7eb !important;
+  border-radius: 8px !important;
+  overflow: hidden !important;
+}
+
+.rabbithole-article-content th {
+  background-color: #f8f9fa !important;
+  border: 1px solid #e5e7eb !important;
+  padding: 10px 15px !important;
+  text-align: left !important;
+  font-weight: 600 !important;
+}
+
+.rabbithole-article-content td {
+  border: 1px solid #e5e7eb !important;
+  padding: 10px 15px !important;
+}
+
+.rabbithole-article-content tr:nth-child(even) {
+  background-color: #f8f9fa !important;
+}
+
+/* Loading Spinner */
+.rabbithole-loading {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 40px !important;
+  text-align: center !important;
+}
+
+.loading-spinner {
+  width: 40px !important;
+  height: 40px !important;
+  border: 3px solid rgba(5, 80, 174, 0.1) !important;
+  border-radius: 50% !important;
+  border-top-color: #0550ae !important;
+  animation: spin 1s ease-in-out infinite !important;
+  margin-bottom: 15px !important;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.rabbithole-loading p {
+  color: #777 !important;
+  font-size: 14px !important;
+}
+
+/* Error Message */
+.rabbithole-error {
+  padding: 25px !important;
+  text-align: center !important;
+  background-color: #fff8f8 !important;
+  border: 1px solid #fee !important;
+  border-radius: 8px !important;
+  margin: 20px 0 !important;
+}
+
+.rabbithole-error p {
+  color: #d32f2f !important;
+  margin-bottom: 15px !important;
+}
+
+.rabbithole-error a {
+  display: inline-block !important;
+  padding: 8px 16px !important;
+  background-color: #f5f5f5 !important;
+  color: #0550ae !important;
+  text-decoration: none !important;
+  border-radius: 6px !important;
+  transition: all 0.2s ease !important;
+}
+
+.rabbithole-error a:hover {
+  background-color: #e5e5e5 !important;
+}
+
+/* Improve overall article styling */
+.rabbithole-article-content ul,
+.rabbithole-article-content ol {
+  margin-bottom: 16px !important;
+  padding-left: 25px !important;
+}
+
+.rabbithole-article-content li {
+  margin-bottom: 8px !important;
+}
+
+.rabbithole-article-content blockquote {
+  border-left: 4px solid #0550ae !important;
+  padding-left: 15px !important;
+  margin: 16px 0 !important;
+  color: #555 !important;
+  font-style: italic !important;
+}
+
+/* Add these styles for wiki links */
+.rabbithole-wiki-internal-link {
+  color: #0550ae !important;
+  text-decoration: none !important;
+  border-bottom: 1px solid transparent !important;
+  transition: all 0.2s ease !important;
+  cursor: pointer !important;
+  position: relative !important;
+  display: inline-flex !important;
+  align-items: center !important;
+}
+
+.rabbithole-wiki-internal-link:hover {
+  border-bottom-color: #0550ae !important;
+  background-color: rgba(5, 80, 174, 0.05) !important;
+}
+
+.rabbithole-wiki-internal-link:after {
+  content: "" !important;
+  display: inline-block !important;
+  width: 0 !important;
+  height: 0 !important;
+  border-style: solid !important;
+  border-width: 0 !important;
+  margin-left: 4px !important;
+  opacity: 0 !important;
+  transition: all 0.2s ease !important;
+}
+
+.rabbithole-wiki-internal-link:hover:after {
+  content: "↗" !important;
+  font-size: 9px !important;
+  opacity: 0.7 !important;
+}
+
+.link-loading {
+  display: inline-flex !important;
+  align-items: center !important;
+  color: #777 !important;
+  font-style: italic !important;
+  gap: 5px !important;
+}
+
+.link-loading:before {
+  content: "" !important;
+  display: inline-block !important;
+  width: 10px !important;
+  height: 10px !important;
+  border: 2px solid rgba(5, 80, 174, 0.1) !important;
+  border-radius: 50% !important;
+  border-top-color: #0550ae !important;
+  animation: spin 1s ease-in-out infinite !important;
+}

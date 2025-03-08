@@ -1,27 +1,31 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <style>
-    body {
-      width: 200px;
-      padding: 10px;
-      font-family: Arial, sans-serif;
-    }
-    button {
-      width: 100%;
-      padding: 8px;
-      background-color: #4285f4;
-      color: white;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-    }
-  </style>
+  <meta charset="UTF-8">
+  <title>RabbitHole</title>
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <h3>Wiki Summary Tool</h3>
-  <p>Select text on any page to see a Wikipedia summary.</p>
-  <button id="activateBtn">Activate Selection Mode</button>
+  <div class="popup-container">
+    <h1 class="title">RabbitHole</h1>
+    <div class="description">
+      <p>Highlight text on any webpage to dive into Wikipedia articles.</p>
+      <p>Follow your curiosity down the rabbit hole!</p>
+    </div>
+    <div class="instructions">
+      <h2>How to use:</h2>
+      <ol>
+        <li>Highlight any text on a webpage</li>
+        <li>If a Wikipedia page exists, the text will turn blue</li>
+        <li>Hover over the blue text to see a preview</li>
+        <li>Click the blue text to expand to full view</li>
+        <li>Use the tree visualization to track your journey</li>
+      </ol>
+    </div>
+    <div class="footer">
+      <p>Made with ❤️ by RabbitHole</p>
+    </div>
+  </div>
   <script src="popup.js"></script>
 </body>
 </html>
