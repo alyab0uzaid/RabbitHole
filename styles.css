@@ -1,20 +1,21 @@
 /* Update color variables */
 :root {
-  --primary-color: #3a5ccc;       /* Modern blue */
-  --primary-dark: #2a3f8e;        /* Darker blue */
-  --primary-light: #eef1fc;       /* Light blue background */
-  --accent-color: #ff4757;        /* Accent red for highlights */
-  --text-primary: #2d3748;        /* Dark text */
-  --text-secondary: #4a5568;      /* Secondary text */
-  --gray-light: #f7fafc;          /* Light gray for backgrounds */
-  --gray-medium: #e2e8f0;         /* Medium gray for borders */
+  --primary-color: #4263eb;       /* Modern vibrant blue */
+  --primary-dark: #3b5bdb;        /* Darker blue */
+  --primary-light: #edf2ff;       /* Light blue background */
+  --accent-color: #f03e3e;        /* Accent red for highlights */
+  --text-primary: #212529;        /* Dark text for better contrast */
+  --text-secondary: #6c757d;      /* Medium gray for secondary text */
+  --gray-light: #f8f9fa;          /* Light gray for backgrounds */
+  --gray-medium: #e9ecef;         /* Medium gray for borders */
   --background-light: #ffffff;    /* White background */
-  --shadow-small: 0 2px 5px rgba(0, 0, 0, 0.08);
-  --shadow-medium: 0 4px 12px rgba(0, 0, 0, 0.1);
-  --shadow-large: 0 10px 25px rgba(0, 0, 0, 0.15);
-  --border-radius-sm: 6px;
+  --popup-bg: #f8f9fa;            /* Light gray popup background */
+  --shadow-small: 0 2px 8px rgba(0, 0, 0, 0.08);
+  --shadow-medium: 0 6px 16px rgba(0, 0, 0, 0.1);
+  --shadow-large: 0 12px 24px rgba(0, 0, 0, 0.12);
+  --border-radius-sm: 8px;
   --border-radius-md: 12px;
-  --border-radius-lg: 18px;
+  --border-radius-lg: 16px;
 }
 
 /* General Styles */
@@ -80,20 +81,18 @@ body {
 }
 
 .rabbithole-popup {
-  width: 350px !important;
-  background-color: var(--background-light) !important;
-  border-radius: var(--border-radius-md) !important;
-  box-shadow: var(--shadow-medium) !important;
-  overflow: hidden !important;
-  max-height: 420px !important;
+  background: transparent;
+  border-radius: 12px;
+  box-shadow: none;
+  max-width: 400px;
+  animation: popup-appear 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  transform-origin: top center;
   z-index: 10000 !important;
-  border: 1px solid var(--gray-medium) !important;
-  animation: popup-appear 0.3s ease-out !important;
 }
 
 @keyframes popup-appear {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+  0% { opacity: 0; transform: translateY(20px) scale(0.98); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 .rabbithole-header {
@@ -821,12 +820,346 @@ input:checked + .toggle-slider:before {
   100% { opacity: 0; transform: translate(-50%, -10px); }
 }
 
-/* Add animation for popup fade-out */
+/* Updated animations */
 @keyframes popup-fadeout {
-  from { opacity: 1; transform: translateY(0); }
-  to { opacity: 0; transform: translateY(10px); }
+  0% { opacity: 1; transform: translateY(0) scale(1); }
+  100% { opacity: 0; transform: translateY(10px) scale(0.98); }
 }
 
 .rabbithole-popup-fadeout {
-  animation: popup-fadeout 0.2s ease-out forwards !important;
+  animation: popup-fadeout 0.25s cubic-bezier(0.55, 0.085, 0.68, 0.53) forwards !important;
+}
+
+/* Styles for the small toggle in the popup */
+.popup-toggle {
+  margin: 5px 0;
+  padding-top: 5px;
+  border-top: 1px solid var(--gray-medium);
+}
+
+.mini-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+}
+
+.toggle-switch.small {
+  width: 30px;
+  height: 16px;
+  margin-right: 6px;
+}
+
+.toggle-switch.small .toggle-slider:before {
+  height: 10px;
+  width: 10px;
+  left: 3px;
+  bottom: 3px;
+}
+
+.toggle-switch.small input:checked + .toggle-slider:before {
+  transform: translateX(14px);
+}
+
+.rabbithole-footer {
+  margin-top: 5px;
+  font-size: 11px;
+  text-align: center;
+  padding-top: 5px;
+  border-top: 1px solid var(--gray-medium);
+}
+
+.rabbithole-footer a {
+  color: var(--primary-color);
+  text-decoration: none;
+  transition: all 0.2s ease;
+}
+
+.rabbithole-footer a:hover {
+  text-decoration: underline;
+}
+
+/* Modern Popup Styles */
+.popup-modern {
+  display: flex;
+  flex-direction: column;
+  background-color: var(--background-light);
+  border-radius: var(--border-radius-md);
+  overflow: hidden;
+  box-shadow: var(--shadow-medium);
+  width: 420px;
+  position: relative;
+  border: 1px solid var(--gray-medium);
+}
+
+.popup-dropdown {
+  position: relative;
+  margin-left: 12px;
+  z-index: 10001;
+}
+
+.dropdown-button {
+  background-color: #f0f2f5;
+  color: var(--text-primary);
+  padding: 6px 12px;
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  transition: background-color 0.2s;
+  border: 1px solid #e6e8eb;
+}
+
+.dropdown-button:hover {
+  background-color: #e5e8ec;
+}
+
+.dropdown-source-icon {
+  width: 16px;
+  height: 16px;
+  margin-right: 6px;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+
+.wikipedia-icon {
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="%23000"><path d="M14.5 0h-13C.7 0 0 .7 0 1.5v13c0 .8.7 1.5 1.5 1.5h13c.8 0 1.5-.7 1.5-1.5v-13c0-.8-.7-1.5-1.5-1.5zM8 12.5L7 8 5.5 12.5h-1L3 7.4l-.5 5.1H1.3L2 4h1.6L5 9.1 6.4 4H8l1.5 5.1L11 4h1.6l.7 8.5h-1.2l-.5-5.1L10.1 12.5H9l-1-4.5z"/></svg>');
+}
+
+.dictionary-icon {
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="%23000"><path d="M14 1H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1zm-1 11H4a1 1 0 0 1 0-2h9v2zm0-3H4V3h9v6z"/></svg>');
+}
+
+.dropdown-label {
+  max-width: 80px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dropdown-button::after {
+  content: "";
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 4px solid var(--text-secondary);
+  margin-left: 6px;
+}
+
+.dropdown-content {
+  display: none;
+  position: absolute;
+  right: 0;
+  top: 100%;
+  background-color: white;
+  min-width: 140px;
+  box-shadow: var(--shadow-small);
+  border-radius: var(--border-radius-sm);
+  z-index: 10002;
+  margin-top: 4px;
+  overflow: hidden;
+  border: 1px solid var(--gray-medium);
+}
+
+.dropdown-content.show {
+  display: block;
+  animation: dropdown-appear 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+@keyframes dropdown-appear {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.dropdown-item {
+  padding: 10px 16px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+}
+
+.dropdown-item:hover {
+  background-color: var(--gray-light);
+}
+
+.dropdown-item.active {
+  background-color: var(--primary-light);
+  color: var(--primary-color);
+  font-weight: 500;
+}
+
+.popup-layout {
+  display: flex;
+  padding: 16px;
+}
+
+/* Dictionary layout - full width content */
+.dictionary-layout {
+  padding: 16px;
+}
+
+.popup-image-container {
+  flex: 0 0 140px;
+  height: 140px;
+  background-color: #ffd43b;
+  border-radius: var(--border-radius-sm);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 16px;
+}
+
+.popup-placeholder {
+  color: white;
+  font-size: 28px;
+  font-weight: bold;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.popup-thumbnail {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.popup-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.popup-content.full-width {
+  width: 100%;
+}
+
+.popup-title {
+  margin: 0;
+  font-size: 20px;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: color 0.2s;
+  line-height: 1.2;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.popup-title:hover {
+  color: var(--primary-color);
+}
+
+.popup-summary {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  flex: 1;
+}
+
+.popup-definition {
+  background-color: #fff;
+  padding: 15px;
+  border-radius: var(--border-radius-sm);
+  border: 1px solid var(--gray-medium);
+  margin-bottom: 15px;
+}
+
+.popup-definition .popup-summary {
+  font-size: 16px;
+  font-weight: 400;
+  color: var(--text-primary);
+}
+
+.popup-link {
+  align-self: flex-start;
+  margin-top: 12px;
+  text-decoration: none;
+  color: var(--primary-color);
+  font-size: 14px;
+  font-weight: 500;
+  padding: 6px 12px;
+  border-radius: 20px;
+  background-color: var(--primary-light);
+  transition: background-color 0.2s;
+}
+
+.popup-link:hover {
+  background-color: rgba(66, 99, 235, 0.15);
+}
+
+.popup-close-btn {
+  width: 24px;
+  height: 24px;
+  background-color: transparent;
+  color: var(--text-secondary);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 22px;
+  line-height: 1;
+  transition: background-color 0.2s, color 0.2s;
+  margin-left: 8px;
+}
+
+.popup-close-btn:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+  color: var(--text-primary);
+}
+
+/* Updated header bar for modern design */
+.popup-header-bar {
+  display: flex;
+  align-items: center;
+  padding: 16px 16px 12px;
+  border-bottom: 1px solid var(--gray-medium);
+  position: relative;
+  justify-content: space-between;
+}
+
+/* Updated dropdown positioning */
+.popup-dropdown {
+  position: relative;
+  margin-left: 12px;
+  z-index: 10001;
+}
+
+/* Hide the image container completely if no image */
+.popup-layout {
+  display: flex;
+  padding: 16px;
+}
+
+.popup-layout:empty {
+  display: none;
+}
+
+.popup-image-container:empty {
+  display: none;
+}
+
+.popup-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+/* When image container is hidden, expand content */
+.popup-image-container:empty + .popup-content {
+  margin-left: 0;
+}
+
+/* Styles for when there's no image */
+.popup-layout.no-image .popup-content {
+  margin-left: 0;
+  padding-left: 0;
 }

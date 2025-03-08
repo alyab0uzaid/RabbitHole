@@ -7,6 +7,9 @@ let currentNodeId = 0;
 let isInitialized = false;
 let isEnabled = true; // Default to enabled
 
+// Add a cache for dictionary definitions
+const dictionaryCache = new Map();
+
 // Listen for messages from the popup
 chrome.runtime.onMessage.addListener(function(message, sender, sendResponse) {
   if (message.action === "setEnabled") {
@@ -77,7 +80,8 @@ async function fetchWikipediaData(term) {
 function createPopup(data, position, isTreeNode = false, nodeId = null, sourceElement = null) {
   // Remove any existing popups
   removePopups();
-
+  
+  // Create the popup element
   const popup = document.createElement('div');
   popup.className = 'rabbithole-popup';
   popup.style.position = 'absolute';
@@ -91,66 +95,159 @@ function createPopup(data, position, isTreeNode = false, nodeId = null, sourceEl
     sourceElement.dataset.popupId = popup.dataset.sourceElementId;
   }
   
-  // Create the content - remove the expand button
-  let popupContent = `
-    <div class="rabbithole-header">
-      <h3>${data.title}</h3>
-      <button class="rabbithole-close-btn">×</button>
-    </div>
-    <div class="rabbithole-content">
-      <p>${data.extract}</p>
-  `;
-
+  // Different layout for Dictionary vs Wikipedia
   if (window.selectedSource === 'Dictionary') {
-    popupContent += `<p><a href="${data.url}" target="_blank">View on Dictionary.com</a></p>`;
+    // Dictionary layout (no image)
+    let popupContent = `
+      <div class="popup-modern popup-dictionary">
+        <div class="popup-header-bar">
+          <h2 class="popup-title">${data.title}</h2>
+          <div class="popup-dropdown">
+            <div class="dropdown-button">
+              <span class="dropdown-source-icon dictionary-icon"></span>
+              <span class="dropdown-label">Dictionary</span>
+            </div>
+            <div class="dropdown-content">
+              <div class="dropdown-item" data-source="Wikipedia">
+                <span class="dropdown-source-icon wikipedia-icon"></span>
+                <span>Wikipedia</span>
+              </div>
+              <div class="dropdown-item active" data-source="Dictionary">
+                <span class="dropdown-source-icon dictionary-icon"></span>
+                <span>Dictionary</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="popup-layout dictionary-layout">
+          <div class="popup-content full-width">
+            <div class="popup-definition">
+              <p class="popup-summary">${data.extract}</p>
+            </div>
+            <a href="${data.url}" target="_blank" class="popup-link">View on Dictionary.com</a>
+          </div>
+        </div>
+      </div>
+    `;
+    popup.innerHTML = popupContent;
   } else {
-    popupContent += `<p><a href="https://en.wikipedia.org/wiki/${encodeURIComponent(data.title)}" target="_blank">View on Wikipedia</a></p>`;
+    // Wikipedia layout (with image)
+    let popupContent = `
+      <div class="popup-modern">
+        <div class="popup-header-bar">
+          <h2 class="popup-title">${data.title}</h2>
+          <div class="popup-dropdown">
+            <div class="dropdown-button">
+              <span class="dropdown-source-icon wikipedia-icon"></span>
+              <span class="dropdown-label">Wikipedia</span>
+            </div>
+            <div class="dropdown-content">
+              <div class="dropdown-item active" data-source="Wikipedia">
+                <span class="dropdown-source-icon wikipedia-icon"></span>
+                <span>Wikipedia</span>
+              </div>
+              <div class="dropdown-item" data-source="Dictionary">
+                <span class="dropdown-source-icon dictionary-icon"></span>
+                <span>Dictionary</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="popup-layout ${!data.thumbnail ? 'no-image' : ''}">
+          ${data.thumbnail ? `
+            <div class="popup-image-container">
+              <img src="${data.thumbnail}" alt="${data.title}" class="popup-thumbnail">
+            </div>
+          ` : ''}
+          <div class="popup-content">
+            <p class="popup-summary">${data.extract.substring(0, 150)}${data.extract.length > 150 ? '...' : ''}</p>
+            <a href="https://en.wikipedia.org/wiki/${encodeURIComponent(data.title)}" target="_blank" class="popup-link">View on Wikipedia</a>
+          </div>
+        </div>
+      </div>
+    `;
+    popup.innerHTML = popupContent;
   }
-
-  popupContent += `</div>`;
-
-  popup.innerHTML = popupContent;
   
   // Add event listeners
-  popup.querySelector('.rabbithole-close-btn').addEventListener('click', function(e) {
-    e.stopPropagation(); // Prevent event from bubbling to header
-    popup.remove();
+  
+  // Dropdown functionality
+  const dropdownButton = popup.querySelector('.dropdown-button');
+  const dropdownContent = popup.querySelector('.dropdown-content');
+  
+  dropdownButton.addEventListener('click', function(e) {
+    e.stopPropagation();
+    dropdownContent.classList.toggle('show');
   });
   
-  // Make the header clickable to expand
-  popup.querySelector('.rabbithole-header').addEventListener('click', function() {
-    // Remove the popup
+  // Source selection
+  const dropdownItems = popup.querySelectorAll('.dropdown-item');
+  dropdownItems.forEach(item => {
+    item.addEventListener('click', async function(e) {
+      e.stopPropagation();
+      
+      const newSource = this.dataset.source;
+      console.log("Changing source in popup to:", newSource);
+      
+      // Update UI
+      dropdownItems.forEach(i => i.classList.remove('active'));
+      this.classList.add('active');
+      
+      // Update dropdown button
+      const buttonIcon = dropdownButton.querySelector('.dropdown-source-icon');
+      const buttonLabel = dropdownButton.querySelector('.dropdown-label');
+      buttonIcon.className = `dropdown-source-icon ${newSource.toLowerCase()}-icon`;
+      buttonLabel.textContent = newSource;
+      
+      // Hide dropdown
+      dropdownContent.classList.remove('show');
+      
+      // Save the setting
+      window.selectedSource = newSource;
+      chrome.storage.sync.set({ 'selectedSource': newSource });
+      
+      // Fetch new data for the current term
+      const newData = await fetchData(data.title);
+      if (newData) {
+        // Remove current popup
+        popup.remove();
+        
+        // Create new popup with updated data
+        createPopup(newData, position, isTreeNode, nodeId, sourceElement);
+      }
+    });
+  });
+  
+  // Make the title clickable to expand
+  popup.querySelector('.popup-title').addEventListener('click', function() {
     popup.remove();
-    
-    // Create the expanded modal
     createExpandedModal(data, isTreeNode ? nodeId : null);
   });
   
-  // Make the entire popup clickable to expand (optional - uncomment if you want the whole popup to be clickable)
-  /*
-  popup.addEventListener('click', function() {
-    // Remove the popup
-    popup.remove();
-    
-    // Create the expanded modal
-    createExpandedModal(data, isTreeNode ? nodeId : null);
-  });
-  */
-  
-  // Add mouseenter/mouseleave events to the popup itself
+  // Prevent popup from disappearing when mouse is over it
   popup.addEventListener('mouseenter', function() {
-    // Keep the popup visible when mouse is over it
     this.dataset.isHovered = 'true';
   });
   
   popup.addEventListener('mouseleave', function() {
-    // Remove popup when mouse leaves
     this.dataset.isHovered = 'false';
-    removePopups();
+    
+    // Check if the original source element is still being hovered
+    let sourceStillHovered = false;
+    if (sourceElement && sourceElement.matches(':hover')) {
+      sourceStillHovered = true;
+    }
+    
+    // Only remove if neither the popup nor the source are hovered
+    if (!sourceStillHovered) {
+      removePopups();
+    }
   });
   
   // Add to the DOM
   document.body.appendChild(popup);
+  
+  return popup;
 }
 
 
@@ -162,6 +259,15 @@ function removePopups() {
   popups.forEach(popup => {
     // Only remove the popup if it's not being hovered
     if (popup.dataset.isHovered !== 'true') {
+      // Check if the source element is being hovered
+      let sourceId = popup.dataset.sourceElementId;
+      let sourceElement = sourceId ? document.querySelector(`[data-popup-id="${sourceId}"]`) : null;
+      
+      if (sourceElement && sourceElement.matches(':hover')) {
+        // Source element is hovered, don't remove popup
+        return;
+      }
+      
       // Add the fadeout animation class
       popup.classList.add('rabbithole-popup-fadeout');
       
@@ -170,7 +276,7 @@ function removePopups() {
         if (document.body.contains(popup)) {
           popup.remove();
         }
-      }, 200); // Match the animation duration
+      }, 300); // Match the animation duration
     }
   });
 }
@@ -262,11 +368,6 @@ function createExpandedModal(data, nodeId = null) {
   // Add to the DOM
   document.body.appendChild(container);
   
-  // Add event listeners
-  container.querySelector('.rabbithole-modal-close-btn').addEventListener('click', function() {
-    container.remove();
-  });
-  
   // Process the tree visualization links with a delay to ensure DOM is ready
   setTimeout(() => {
     console.log("Setting up tree node click handlers");
@@ -284,7 +385,7 @@ function createExpandedModal(data, nodeId = null) {
         console.log("Tree node clicked:", nodeInfo?.title);
         
         if (nodeInfo) {
-          const data = await fetchWikipediaData(nodeInfo.title);
+          const data = await fetchData(nodeInfo.title);
           if (data) {
             // Remove the current container
             container.remove();
@@ -296,8 +397,13 @@ function createExpandedModal(data, nodeId = null) {
     });
   }, 200);
   
-  // Fetch the full article
-  fetchFullArticle(data.title, container.querySelector('.rabbithole-article-content'));
+  // Fetch the full article and process its content
+  processArticleContent(data.title, container.querySelector('.rabbithole-article-content'));
+  
+  // Add back the close button event listener for the modal
+  container.querySelector('.rabbithole-modal-close-btn').addEventListener('click', function() {
+    container.remove();
+  });
   
   return container;
 }
@@ -388,348 +494,172 @@ function generateTreeHTML() {
 
 // Function to fetch the full article
 async function fetchFullArticle(title, container) {
-  console.log("Fetching full article for:", title);
-  const url = `https://en.wikipedia.org/w/api.php?action=parse&page=${encodeURIComponent(title)}&prop=text&format=json&origin=*`;
+  // Don't fetch if disabled
+  if (!isEnabled) {
+    console.log("RabbitHole is disabled, not fetching article");
+    return null;
+  }
+
+  console.log("Fetching full article for:", title, "Source:", window.selectedSource);
   
-  try {
-    // Show loading animation
+  // Add loading indicator
+  if (container) {
     container.innerHTML = `
       <div class="rabbithole-loading">
         <div class="loading-spinner"></div>
-        <p>Loading Wikipedia article...</p>
+        <p>Loading article...</p>
       </div>
     `;
-    
-    const response = await fetch(url);
-    const data = await response.json();
-    
-    if (data.parse && data.parse.text) {
-      console.log("Article content received");
-      // Create a temporary element to parse the HTML
-      const tempElement = document.createElement('div');
-      tempElement.innerHTML = data.parse.text['*'];
+  }
+  
+  try {
+    if (window.selectedSource === 'Wikipedia') {
+      // Fetch from Wikipedia's API to get the HTML content
+      const url = `https://en.wikipedia.org/w/api.php?action=parse&page=${encodeURIComponent(title)}&prop=text&format=json&origin=*`;
+      const response = await fetch(url);
+      const data = await response.json();
       
-      // Remove unwanted elements
-      const unwantedSelectors = [
-        '.mw-editsection',
-        '.reference',
-        '.error',
-        '.noprint',
-        'script',
-        'style',
-        '.mw-empty-elt',
-        '.mw-jump-link',
-        '.mw-references-wrap',
-        '#References',
-        '#External_links',
-        '.hatnote',
-        '.navbar'
-      ];
+      if (!data || !data.parse || !data.parse.text || !data.parse.text['*']) {
+        if (container) {
+          container.innerHTML = `
+            <div class="rabbithole-error">
+              <p>Couldn't load the full article.</p>
+              <a href="https://en.wikipedia.org/wiki/${encodeURIComponent(title)}" target="_blank" rel="noopener noreferrer">
+                View on Wikipedia instead
+              </a>
+            </div>
+          `;
+        }
+        return null;
+      }
       
-      unwantedSelectors.forEach(selector => {
-        const elements = tempElement.querySelectorAll(selector);
-        elements.forEach(el => el.remove());
-      });
-      
-      // Fix image URLs and handling
-      const images = tempElement.querySelectorAll('img');
-      const processedSrcs = new Set(); // Track processed image sources to avoid duplicates
-      
-      images.forEach(img => {
-        // Fix the src attribute for images
-        if (img.src) {
-          // Convert relative URLs to absolute
-          if (img.src.startsWith('/')) {
-            img.src = 'https://en.wikipedia.org' + img.src;
-          } else if (img.src.startsWith('//')) {
-            img.src = 'https:' + img.src;
+      console.log("Full article data received for:", title);
+      return data.parse.text['*'];
+    } 
+    else if (window.selectedSource === 'Dictionary') {
+      // For Dictionary, we'll fetch more comprehensive data if possible
+      try {
+        const url = `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(title)}`;
+        const response = await fetch(url);
+        const data = await response.json();
+        
+        if (!data || !data.length) {
+          if (container) {
+            container.innerHTML = `
+              <div class="rabbithole-error">
+                <p>No detailed definition available.</p>
+                <a href="https://www.dictionary.com/browse/${encodeURIComponent(title)}" target="_blank" rel="noopener noreferrer">
+                  View on Dictionary.com instead
+                </a>
+              </div>
+            `;
           }
+          return null;
+        }
+        
+        // Format comprehensive dictionary data
+        let html = `<div class="dictionary-entry">`;
+        
+        // Add phonetics if available
+        if (data[0].phonetics && data[0].phonetics.length > 0 && data[0].phonetics[0].text) {
+          html += `<p class="phonetic">${data[0].phonetics[0].text}</p>`;
+        }
+        
+        // Add audio if available
+        if (data[0].phonetics && data[0].phonetics.length > 0 && data[0].phonetics[0].audio) {
+          html += `
+            <div class="audio-section">
+              <audio controls>
+                <source src="${data[0].phonetics[0].audio}" type="audio/mpeg">
+                Your browser does not support the audio element.
+              </audio>
+            </div>
+          `;
+        }
+        
+        // Process all meanings
+        data[0].meanings.forEach(meaning => {
+          html += `
+            <div class="meaning">
+              <h3 class="part-of-speech">${meaning.partOfSpeech}</h3>
+              <ol class="definitions">
+          `;
           
-          // Check if this is a duplicate image (same source)
-          if (processedSrcs.has(img.src)) {
-            // Remove duplicate image
-            if (img.parentNode) {
-              img.parentNode.removeChild(img);
-            }
-            return;
-          }
-          
-          // Add to processed sources
-          processedSrcs.add(img.src);
-          
-          // Add loading="lazy" attribute
-          img.setAttribute('loading', 'lazy');
-          
-          // Add a nice transition effect
-          img.style.transition = 'opacity 0.3s ease';
-          img.style.opacity = '0';
-          img.onload = function() {
-            this.style.opacity = '1';
-          };
-          
-          // Make the image open in a new tab when clicked
-          img.style.cursor = 'pointer';
-          img.addEventListener('click', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
+          meaning.definitions.forEach(def => {
+            html += `<li>
+              <p class="definition">${def.definition}</p>
+            `;
             
-            // Open the image in a new tab
-            if (this.src) {
-              window.open(this.src, '_blank');
+            if (def.example) {
+              html += `<p class="example">"${def.example}"</p>`;
             }
+            
+            html += `</li>`;
           });
-        }
-        
-        // Handle srcset attribute as well
-        if (img.hasAttribute('srcset')) {
-          const srcset = img.getAttribute('srcset');
-          const newSrcset = srcset.split(',').map(src => {
-            const parts = src.trim().split(' ');
-            if (parts[0].startsWith('/')) {
-              return 'https://en.wikipedia.org' + parts[0] + ' ' + parts[1];
-            } else if (parts[0].startsWith('//')) {
-              return 'https:' + parts[0] + ' ' + parts[1];
-            }
-            return src;
-          }).join(', ');
           
-          img.setAttribute('srcset', newSrcset);
-        }
-      });
-      
-      // Remove redundant image containers
-      const thumbs = tempElement.querySelectorAll('.thumb');
-      thumbs.forEach(thumb => {
-        // Check if this thumb contains multiple identical images
-        const thumbImages = thumb.querySelectorAll('img');
-        if (thumbImages.length > 1) {
-          // Keep only the first image
-          for (let i = 1; i < thumbImages.length; i++) {
-            if (thumbImages[i].parentNode) {
-              thumbImages[i].parentNode.removeChild(thumbImages[i]);
-            }
+          html += `</ol>`;
+          
+          // Add synonyms if available
+          if (meaning.synonyms && meaning.synonyms.length > 0) {
+            html += `
+              <div class="synonyms">
+                <h4>Synonyms:</h4>
+                <p>${meaning.synonyms.join(', ')}</p>
+              </div>
+            `;
+          }
+          
+          // Add antonyms if available
+          if (meaning.antonyms && meaning.antonyms.length > 0) {
+            html += `
+              <div class="antonyms">
+                <h4>Antonyms:</h4>
+                <p>${meaning.antonyms.join(', ')}</p>
+              </div>
+            `;
+          }
+          
+          html += `</div>`;
+        });
+        
+        html += `</div>`;
+        return html;
+      } catch (error) {
+        console.error("Error fetching detailed dictionary data:", error);
+        // Fall back to basic definition
+        if (container) {
+          const modalBody = container.closest('.rabbithole-modal-body');
+          if (modalBody) {
+            const basicDefinition = modalBody.querySelector('p')?.textContent || "No definition available.";
+            return `
+              <div class="dictionary-entry">
+                <p class="definition">${basicDefinition}</p>
+                <a href="https://www.dictionary.com/browse/${encodeURIComponent(title)}" target="_blank" rel="noopener noreferrer">
+                  View more on Dictionary.com
+                </a>
+              </div>
+            `;
           }
         }
-      });
-      
-      // Enhance tables
-      const tables = tempElement.querySelectorAll('table');
-      tables.forEach(table => {
-        table.classList.add('rabbithole-table');
-        table.style.width = '100%';
-        table.style.borderCollapse = 'collapse';
-        table.style.margin = '20px 0';
-        table.style.border = '1px solid #e5e7eb';
-      });
-      
-      // Enhance links with colors
-      const internalLinks = tempElement.querySelectorAll('a[href^="/wiki/"]');
-      internalLinks.forEach(link => {
-        link.style.color = '#0550ae';
-      });
-      
-      // Fix infobox styling
-      const originalInfoboxes = tempElement.querySelectorAll('.infobox');
-      originalInfoboxes.forEach(infobox => {
-        infobox.style.float = 'right';
-        infobox.style.margin = '0 0 20px 20px';
-        infobox.style.maxWidth = '300px';
-        infobox.style.border = '1px solid #eee';
-        infobox.style.borderRadius = '8px';
-        infobox.style.overflow = 'hidden';
-        infobox.style.backgroundColor = '#f8f9fa';
-      });
-      
-      // Process the content to make internal links work with our system
-      processWikiLinks(tempElement);
-      
-      // Set the content
-      container.innerHTML = '';
-      
-      // Add a "View on Wikipedia" link at the top
-      const wikiLink = document.createElement('div');
-      wikiLink.className = 'rabbithole-wiki-link';
-      wikiLink.innerHTML = `<a href="https://en.wikipedia.org/wiki/${encodeURIComponent(title)}" target="_blank" rel="noopener noreferrer">
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-          <path d="M8 0C3.58 0 0 3.58 0 8c0 4.42 3.58 8 8 8s8-3.58 8-8c0-4.42-3.58-8-8-8zm0 7.8L5.67 4.83l-.66.67L8 8.2l2.99-2.7-.66-.67L8 7.8z"/>
-        </svg>
-        View this article on Wikipedia
-      </a>`;
-      container.appendChild(wikiLink);
-      
-      // Add the article content
-      container.appendChild(tempElement);
-      
-      // Add modern styling to the overall article
-      tempElement.style.fontSize = '15px';
-      tempElement.style.lineHeight = '1.8';
-      tempElement.style.color = '#2d3748';
-      
-      // Fix overall article layout
-      const articleElements = tempElement.querySelectorAll('div, section, article');
-      articleElements.forEach(element => {
-        if (element.id === 'bodyContent' || element.className.includes('mw-parser-output')) {
-          element.style.maxWidth = '100%';
-          element.style.width = '100%';
-        }
-      });
-      
-      // Enhance all images for a more modern look
-      const allImages = container.querySelectorAll('img');
-      allImages.forEach(img => {
-        img.style.borderRadius = '8px';
-        img.style.maxWidth = '100%';
-        
-        // Only if it's not in a figure/thumb already
-        if (!img.closest('.thumb') && !img.closest('figure')) {
-          img.style.display = 'block';
-          img.style.margin = '1.5em auto';
-          img.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.1)';
-        }
-      });
-      
-      // Style infoboxes (usually on the right in Wikipedia)
-      const infoboxes = container.querySelectorAll('.infobox, .infotable');
-      infoboxes.forEach(box => {
-        box.style.border = '1px solid #e2e8f0';
-        box.style.borderRadius = '12px';
-        box.style.overflow = 'hidden';
-        box.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.08)';
-        box.style.margin = '0 0 20px 20px';
-        box.style.float = 'right';
-        box.style.maxWidth = '320px';
-        box.style.fontSize = '14px';
-        box.style.lineHeight = '1.6';
-        
-        // Style infobox headers
-        const headers = box.querySelectorAll('th');
-        headers.forEach(header => {
-          header.style.backgroundColor = '#3a5ccc';
-          header.style.color = 'white';
-          header.style.padding = '10px';
-        });
-        
-        // Style infobox data cells
-        const cells = box.querySelectorAll('td');
-        cells.forEach(cell => {
-          cell.style.padding = '8px 10px';
-        });
-        
-        // Style infobox rows
-        const rows = box.querySelectorAll('tr');
-        rows.forEach((row, index) => {
-          if (index % 2 === 0) {
-            row.style.backgroundColor = '#f7fafc';
-          }
-        });
-      });
-      
-      // Enhance blockquotes
-      const blockquotes = container.querySelectorAll('blockquote');
-      blockquotes.forEach(quote => {
-        quote.style.borderLeft = '4px solid #3a5ccc';
-        quote.style.padding = '12px 20px';
-        quote.style.margin = '20px 0';
-        quote.style.backgroundColor = '#eef1fc';
-        quote.style.borderRadius = '0 8px 8px 0';
-        quote.style.fontStyle = 'italic';
-      });
-      
-      // Style definition lists
-      const definitionLists = container.querySelectorAll('dl');
-      definitionLists.forEach(list => {
-        list.style.margin = '20px 0';
-        list.style.padding = '15px';
-        list.style.backgroundColor = '#f7fafc';
-        list.style.borderRadius = '8px';
-        list.style.border = '1px solid #e2e8f0';
-        
-        const terms = list.querySelectorAll('dt');
-        terms.forEach(term => {
-          term.style.fontWeight = 'bold';
-          term.style.color = '#3a5ccc';
-          term.style.marginBottom = '6px';
-        });
-        
-        const definitions = list.querySelectorAll('dd');
-        definitions.forEach(def => {
-          def.style.marginBottom = '12px';
-          def.style.marginLeft = '20px';
-        });
-      });
-      
-      // Add smooth scroll behavior
-      container.style.scrollBehavior = 'smooth';
-      
-      // Improve paragraph spacing
-      const paragraphs = container.querySelectorAll('p');
-      paragraphs.forEach(p => {
-        p.style.marginBottom = '16px';
-        p.style.lineHeight = '1.7';
-      });
-      
-      // Enhance headings
-      const headings = container.querySelectorAll('h1, h2, h3, h4, h5, h6');
-      headings.forEach(heading => {
-        heading.style.color = '#0550ae';
-        heading.style.fontWeight = '600';
-        heading.style.marginTop = '24px';
-        heading.style.marginBottom = '16px';
-      });
-      
-      // Fix image containers (figures and thumbnails) with modern styling
-      const figures = tempElement.querySelectorAll('.thumb, figure');
-      figures.forEach(figure => {
-        figure.style.maxWidth = '400px';
-        figure.style.margin = '1.5em auto';
-        figure.style.textAlign = 'center';
-        figure.style.backgroundColor = '#f9fafb';
-        figure.style.padding = '12px';
-        figure.style.borderRadius = '12px';
-        figure.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.08)';
-        figure.style.transition = 'box-shadow 0.3s ease';
-        
-        // Add hover effect
-        figure.addEventListener('mouseenter', function() {
-          this.style.boxShadow = '0 8px 24px rgba(0, 0, 0, 0.12)';
-        });
-        
-        figure.addEventListener('mouseleave', function() {
-          this.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.08)';
-        });
-        
-        // Fix captions
-        const captions = figure.querySelectorAll('.thumbcaption, figcaption');
-        captions.forEach(caption => {
-          caption.style.fontSize = '13px';
-          caption.style.color = '#4a5568';
-          caption.style.padding = '8px 5px 0';
-          caption.style.marginTop = '8px';
-          caption.style.borderTop = '1px solid #edf2f7';
-          caption.style.fontStyle = 'italic';
-        });
-      });
-    } else {
-      console.error("Failed to load article:", data);
+        return null;
+      }
+    }
+  } catch (error) {
+    console.error("Error fetching full article:", error);
+    if (container) {
       container.innerHTML = `
         <div class="rabbithole-error">
-          <p>Failed to load the article.</p>
-          <a href="https://en.wikipedia.org/wiki/${encodeURIComponent(title)}" target="_blank" rel="noopener noreferrer">
-            Try viewing directly on Wikipedia
+          <p>Error loading article: ${error.message}</p>
+          <a href="${window.selectedSource === 'Wikipedia' 
+              ? `https://en.wikipedia.org/wiki/${encodeURIComponent(title)}`
+              : `https://www.dictionary.com/browse/${encodeURIComponent(title)}`}" 
+            target="_blank" rel="noopener noreferrer">
+            View on ${window.selectedSource} instead
           </a>
         </div>
       `;
     }
-  } catch (error) {
-    console.error('Error fetching full article:', error);
-    container.innerHTML = `
-      <div class="rabbithole-error">
-        <p>Error loading the article: ${error.message}</p>
-        <a href="https://en.wikipedia.org/wiki/${encodeURIComponent(title)}" target="_blank" rel="noopener noreferrer">
-          Try viewing directly on Wikipedia
-        </a>
-      </div>
-    `;
+    return null;
   }
 }
 
@@ -820,6 +750,11 @@ function processWikiLinks(element) {
               // Don't fetch if extension is disabled
               if (!isEnabled) return;
               
+              // Clear any existing timeout
+              if (this.hoverTimeout) {
+                clearTimeout(this.hoverTimeout);
+              }
+              
               // Skip if there's already a popup
               const existingPopup = document.querySelector('.rabbithole-popup');
               if (existingPopup) return;
@@ -833,7 +768,7 @@ function processWikiLinks(element) {
                 };
                 
                 try {
-                  const data = await fetchWikipediaData(title);
+                  const data = await fetchData(title);
                   if (data) {
                     createPopup(data, position, false, null, this);
                   }
@@ -870,7 +805,7 @@ function processWikiLinks(element) {
               
               try {
                 console.log("Wiki link clicked, fetching data for:", title);
-                const data = await fetchWikipediaData(title);
+                const data = await fetchData(title);
                 // Restore original text
                 this.innerHTML = originalText;
                 
@@ -950,7 +885,7 @@ function processWikiLinks(element) {
                 this.innerHTML = `<span class="link-loading">Loading...</span>`;
                 
                 try {
-                  const data = await fetchWikipediaData(title);
+                  const data = await fetchData(title);
                   // Restore original text
                   this.innerHTML = originalText;
                   
@@ -1032,7 +967,7 @@ function initRabbitHole() {
             y: rect.bottom + window.scrollY + 10
           };
           console.log("Fetching data...");
-          // Fetch data for the selected text
+          // Fetch data for the selected text from the active source
           const data = await fetchData(selectedText);
           
           if (data) {
@@ -1066,20 +1001,20 @@ function initRabbitHole() {
             
             // Add hover event to show popup
             wrapper.addEventListener('mouseenter', function(e) {
+              // Don't show popup if disabled
+              if (!isEnabled) return;
+              
               const rect = wrapper.getBoundingClientRect();
               const position = {
                 x: rect.left + window.scrollX,
                 y: rect.bottom + window.scrollY
               };
               
-              createPopup(data, position, false, null, this); // Pass the wrapper element as the fifth parameter
+              // Create the popup but don't automatically schedule its removal
+              // The popup itself will handle mouse enter/leave events
+              const popup = createPopup(data, position, false, null, this);
             });
-            
-            // Add mouseleave event to remove popup
-            wrapper.addEventListener('mouseleave', function(e) {
-              removePopups();
-            });
-            
+
             // Make sure the click event is properly set up
             wrapper.addEventListener('click', function(e) {
               // Don't show modal if disabled
@@ -1158,132 +1093,170 @@ async function fetchData(term) {
 
 
 async function fetchDictionaryData(term) {
+  // Check cache first
+  const cacheKey = term.toLowerCase();
+  if (dictionaryCache.has(cacheKey)) {
+    console.log("Using cached dictionary data for:", term);
+    return dictionaryCache.get(cacheKey);
+  }
+
+  console.log("Fetching dictionary data for:", term);
   const url = `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(term)}`;
   try {
     const response = await fetch(url);
     const data = await response.json();
     if (!data || !data.length) return null;
-    return {
+    
+    // Create consistent data object
+    const result = {
       title: term,
       extract: data[0].meanings[0].definitions[0].definition || "No definition available",
       thumbnail: null,
       pageId: term,
       url: `https://www.dictionary.com/browse/${encodeURIComponent(term)}`
     };
+    
+    // Cache the result
+    dictionaryCache.set(cacheKey, result);
+    
+    return result;
   } catch (error) {
     console.error('Error fetching dictionary data:', error);
     return null;
   }
 }
-function createPopup(data, position, isTreeNode = false, nodeId = null) {
-  removePopups();
+
+// Update the processArticleContent function to properly display the content
+async function processArticleContent(title, container) {
+  console.log("Processing article content for:", title);
+  const html = await fetchFullArticle(title, container);
   
-  const popup = document.createElement('div');
-  popup.className = 'rabbithole-popup';
-  popup.style.position = 'absolute';
-  popup.style.left = `${position.x}px`;
-  popup.style.top = `${position.y}px`;
-  popup.style.zIndex = '10000';
-
-  let popupContent = `
-    <div class="rabbithole-header">
-      <h3>${data.title}</h3>
-      <button class="rabbithole-expand-btn">Expand</button>
-      <button class="rabbithole-close-btn">×</button>
-    </div>
-    <div class="rabbithole-content">
-  `;
-
-  if (data.thumbnail) {
-    popupContent += `<img src="${data.thumbnail}" alt="${data.title}" class="rabbithole-thumbnail">`;
-  }
-
-  popupContent += `
-      <p>${data.extract.substring(0, 200)}${data.extract.length > 200 ? '...' : ''}</p>
-    </div>
-  `;
-
-  if (window.selectedSource === 'Dictionary') {
-    popupContent += `<div class="rabbithole-footer"><a href="${data.url}" target="_blank">View on Dictionary.com</a></div>`;
-  } else {
-    popupContent += `<div class="rabbithole-footer"><a href="https://en.wikipedia.org/wiki/${encodeURIComponent(data.title)}" target="_blank">View on Wikipedia</a></div>`;
-  }
-
-  popup.innerHTML = popupContent;
-
-  popup.querySelector('.rabbithole-close-btn').addEventListener('click', function() {
-    popup.remove();
-  });
-
-  popup.querySelector('.rabbithole-expand-btn').addEventListener('click', function() {
-    popup.remove();
-    createExpandedModal(data, isTreeNode ? nodeId : null);
-  });
-
-  document.body.appendChild(popup);
-}
-
-function createExpandedModal(data, nodeId = null) {
-  removeModals();
-  if (nodeId === null) {
-    nodeId = generateNodeId();
-    wikiTree.push({
-      id: nodeId,
-      title: data.title,
-      parentId: wikiTree.length > 0 ? wikiTree[wikiTree.length - 1].id : null
+  if (!html) return;
+  
+  // Create a temporary element to parse the HTML
+  const tempElement = document.createElement('div');
+  tempElement.innerHTML = html;
+  
+  if (window.selectedSource === 'Wikipedia') {
+    // Wikipedia-specific processing
+    
+    // Remove unwanted elements
+    const unwanted = tempElement.querySelectorAll('.mw-editsection, #coordinates, .error, .mw-empty-elt');
+    unwanted.forEach(el => el.remove());
+    
+    // Fix image URLs
+    const images = tempElement.querySelectorAll('img');
+    const processedImages = new Set(); // Track processed images to avoid duplicates
+    
+    images.forEach(img => {
+      if (img.src) {
+        // Skip if we've already processed an image with this src
+        if (processedImages.has(img.src)) {
+          img.remove();
+          return;
+        }
+        
+        // Add to processed set
+        processedImages.add(img.src);
+        
+        // Fix relative URLs
+        if (img.src.startsWith('//')) {
+          img.src = 'https:' + img.src;
+        }
+        
+        // Make images open in a new tab when clicked
+        img.addEventListener('click', function(e) {
+          e.preventDefault();
+          window.open(this.src, '_blank');
+        });
+        
+        // Add pointer cursor
+        img.style.cursor = 'pointer';
+      }
+    });
+    
+    // Fix tables
+    const tables = tempElement.querySelectorAll('table');
+    tables.forEach(table => {
+      table.classList.add('rabbithole-table');
+      table.setAttribute('border', '1');
+      table.setAttribute('cellpadding', '4');
+      table.setAttribute('cellspacing', '0');
+      
+      // Make sure tables aren't too wide
+      table.style.maxWidth = '100%';
+      table.style.overflowX = 'auto';
+      table.style.display = 'block';
     });
   }
-
-  const container = document.createElement('div');
-  container.className = 'rabbithole-container';
-  container.style.position = 'fixed';
-  container.style.top = '0';
-  container.style.left = '0';
-  container.style.right = '0';
-  container.style.bottom = '0';
-  container.style.zIndex = '10001';
-  container.style.display = 'flex';
-  container.style.flexDirection = 'column';
-  container.style.alignItems = 'center';
-  container.style.justifyContent = 'center';
-  container.style.backgroundColor = 'rgba(0, 0, 0, 0.75)';
-  container.style.backdropFilter = 'blur(5px)';
-
-  const treeContainer = document.createElement('div');
-  treeContainer.className = 'rabbithole-tree-container';
-  const treeTitle = document.createElement('h3');
-  treeTitle.textContent = 'Your Rabbit Hole Journey';
-  treeContainer.appendChild(treeTitle);
-
-  const treeVisualization = document.createElement('div');
-  treeVisualization.className = 'rabbithole-tree';
-  treeVisualization.innerHTML = generateTreeHTML();
-  treeContainer.appendChild(treeVisualization);
-
-  const modal = document.createElement('div');
-  modal.className = 'rabbithole-modal';
-  let modalContent = `
-    <div class="rabbithole-modal-header">
-      <h2>${data.title}</h2>
-      <button class="rabbithole-modal-close-btn">×</button>
-    </div>
-    <div class="rabbithole-modal-body">
-  `;
-
-  if (data.thumbnail) {
-    modalContent += `<img src="${data.thumbnail}" alt="${data.title}" class="rabbithole-modal-thumbnail">`;
+  
+  // Set the content
+  container.innerHTML = '';
+  
+  // Add a source-specific link at the top
+  const sourceLink = document.createElement('div');
+  sourceLink.className = 'rabbithole-wiki-link';
+  
+  if (window.selectedSource === 'Wikipedia') {
+    sourceLink.innerHTML = `<a href="https://en.wikipedia.org/wiki/${encodeURIComponent(title)}" target="_blank" rel="noopener noreferrer">
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+        <path d="M8 0C3.58 0 0 3.58 0 8c0 4.42 3.58 8 8 8s8-3.58 8-8c0-4.42-3.58-8-8-8zm0 7.8L5.67 4.83l-.66.67L8 8.2l2.99-2.7-.66-.67L8 7.8z"/>
+      </svg>
+      View this article on Wikipedia
+    </a>`;
+  } else {
+    sourceLink.innerHTML = `<a href="https://www.dictionary.com/browse/${encodeURIComponent(title)}" target="_blank" rel="noopener noreferrer">
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+        <path d="M8 0C3.58 0 0 3.58 0 8c0 4.42 3.58 8 8 8s8-3.58 8-8c0-4.42-3.58-8-8-8zm0 7.8L5.67 4.83l-.66.67L8 8.2l2.99-2.7-.66-.67L8 7.8z"/>
+      </svg>
+      View full definition on Dictionary.com
+    </a>`;
   }
-
-  modalContent += `<p>${data.extract}</p>`;
-  modalContent += `<div class="rabbithole-footer"><a href="${window.selectedSource === 'Dictionary' ? data.url : `https://en.wikipedia.org/wiki/${encodeURIComponent(data.title)}`}" target="_blank">View on ${window.selectedSource === 'Dictionary' ? 'Dictionary.com' : 'Wikipedia'}</a></div>`;
-  modal.innerHTML = modalContent;
-
-  container.appendChild(treeContainer);
-  container.appendChild(modal);
-
-  container.querySelector('.rabbithole-modal-close-btn').addEventListener('click', function() {
-    container.remove();
+  
+  container.appendChild(sourceLink);
+  
+  // Add the article content
+  container.appendChild(tempElement);
+  
+  // Process links only for Wikipedia content
+  if (window.selectedSource === 'Wikipedia') {
+    processWikiLinks(tempElement);
+  }
+  
+  // Add source toggle directly in the modal
+  // This allows switching without going back to the popup
+  const toggleContainer = document.createElement('div');
+  toggleContainer.className = 'rabbithole-source-toggle';
+  toggleContainer.innerHTML = `
+    <div class="extension-toggle">
+      <label class="toggle-switch">
+        <input type="checkbox" id="modalSourceToggle" ${window.selectedSource === 'Dictionary' ? 'checked' : ''}>
+        <span class="toggle-slider"></span>
+      </label>
+      <span class="toggle-label">Source: <span id="modalCurrentSource">${window.selectedSource}</span></span>
+    </div>
+  `;
+  
+  // Add the toggle before the content
+  container.insertBefore(toggleContainer, sourceLink);
+  
+  // Add event listener for the toggle
+  const modalToggle = container.querySelector('#modalSourceToggle');
+  modalToggle.addEventListener('change', async function() {
+    const newSource = this.checked ? 'Dictionary' : 'Wikipedia';
+    console.log("Changing source to:", newSource);
+    
+    // Update the display
+    const sourceLabel = container.querySelector('#modalCurrentSource');
+    if (sourceLabel) {
+      sourceLabel.textContent = newSource;
+    }
+    
+    // Save the setting
+    window.selectedSource = newSource;
+    chrome.storage.sync.set({ 'selectedSource': newSource });
+    
+    // Reload the content with the new source
+    await processArticleContent(title, container);
   });
-
-  document.body.appendChild(container);
 }
