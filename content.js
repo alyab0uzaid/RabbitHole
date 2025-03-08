@@ -2,6 +2,17 @@
 let wikiTree = [];
 let currentNodeId = 0;
 let isInitialized = false;
+let isEnabled = true; // Default to enabled
+
+// Listen for messages from the popup
+chrome.runtime.onMessage.addListener(function(message, sender, sendResponse) {
+  if (message.action === "setEnabled") {
+    isEnabled = message.enabled;
+    console.log("RabbitHole extension " + (isEnabled ? "enabled" : "disabled"));
+    sendResponse({status: "success"});
+  }
+  return true; // Keep the message channel open for async response
+});
 
 // Helper function to create a unique ID for each node in the tree
 function generateNodeId() {
@@ -10,6 +21,12 @@ function generateNodeId() {
 
 // Function to fetch Wikipedia data
 async function fetchWikipediaData(term) {
+  // Don't fetch if disabled
+  if (!isEnabled) {
+    console.log("RabbitHole is disabled, not fetching data");
+    return null;
+  }
+  
   console.log("Fetching Wikipedia data for:", term);
   const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(term)}&format=json&origin=*`;
   
@@ -643,8 +660,18 @@ function initRabbitHole() {
   console.log("Initializing RabbitHole extension...");
   isInitialized = true;
   
+  // Check if the extension is enabled in storage
+  chrome.storage.sync.get('rabbitHoleEnabled', function(data) {
+    // Default to enabled if setting doesn't exist
+    isEnabled = data.rabbitHoleEnabled !== undefined ? data.rabbitHoleEnabled : true;
+    console.log("RabbitHole extension is " + (isEnabled ? "enabled" : "disabled") + " on initialization");
+  });
+  
   // Listen for text selection
   document.addEventListener('mouseup', async function(e) {
+    // Don't process if extension is disabled
+    if (!isEnabled) return;
+    
     // Wait a small delay to ensure the selection is complete
     setTimeout(async () => {
       const selection = window.getSelection();
@@ -691,6 +718,9 @@ function initRabbitHole() {
             
             // Add hover event to show popup
             wrapper.addEventListener('mouseenter', function(e) {
+              // Don't show popup if disabled
+              if (!isEnabled) return;
+              
               const rect = wrapper.getBoundingClientRect();
               const position = {
                 x: rect.left + window.scrollX,
@@ -702,6 +732,9 @@ function initRabbitHole() {
             
             // Add click event to show expanded modal
             wrapper.addEventListener('click', function(e) {
+              // Don't show modal if disabled
+              if (!isEnabled) return;
+              
               e.preventDefault();
               e.stopPropagation();
               
