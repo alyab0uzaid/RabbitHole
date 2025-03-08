@@ -66,6 +66,33 @@ document.addEventListener('DOMContentLoaded', function() {
     footer.appendChild(statusMsg);
   }
 });
+document.addEventListener('DOMContentLoaded', function() {
+  const toggleSwitch = document.getElementById('extensionToggle');
+  const toggleStatus = document.getElementById('toggleStatus');
+  const sourceToggle = document.getElementById('sourceToggle');
+  const currentSource = document.getElementById('currentSource');
 
+  chrome.storage.sync.get(['rabbitHoleEnabled', 'selectedSource'], function(data) {
+    const isEnabled = data.rabbitHoleEnabled !== undefined ? data.rabbitHoleEnabled : true;
+    toggleSwitch.checked = isEnabled;
+    toggleStatus.textContent = isEnabled ? 'enabled' : 'disabled';
+    toggleStatus.style.color = isEnabled ? '#0550ae' : '#777';
+    sourceToggle.checked = data.selectedSource === 'Dictionary';
+    currentSource.textContent = data.selectedSource || 'Wikipedia';
+  });
+
+  toggleSwitch.addEventListener('change', function() {
+    const isEnabled = toggleSwitch.checked;
+    toggleStatus.textContent = isEnabled ? 'enabled' : 'disabled';
+    toggleStatus.style.color = isEnabled ? '#0550ae' : '#777';
+    chrome.storage.sync.set({ 'rabbitHoleEnabled': isEnabled });
+  });
+
+  sourceToggle.addEventListener('change', function() {
+    const selectedSource = sourceToggle.checked ? 'Dictionary' : 'Wikipedia';
+    chrome.storage.sync.set({ 'selectedSource': selectedSource });
+    currentSource.textContent = selectedSource;
+  });
+});
 // No other functionality is needed since the content script 
 // operates independently once loaded

@@ -71,59 +71,42 @@ async function fetchWikipediaData(term) {
 }
 
 // Function to create and show the popup
-function createPopup(data, position, isTreeNode = false, nodeId = null) {
-  // Remove any existing popups
+function createPopup(data, position) {
   removePopups();
-  
-  // Create the popup element
+
   const popup = document.createElement('div');
   popup.className = 'rabbithole-popup';
   popup.style.position = 'absolute';
   popup.style.left = `${position.x}px`;
   popup.style.top = `${position.y}px`;
   popup.style.zIndex = '10000';
-  
-  // Create the content
+
   let popupContent = `
     <div class="rabbithole-header">
       <h3>${data.title}</h3>
-      <button class="rabbithole-expand-btn">Expand</button>
       <button class="rabbithole-close-btn">×</button>
     </div>
     <div class="rabbithole-content">
+      <p>${data.extract}</p>
   `;
-  
-  // Add thumbnail if available
-  if (data.thumbnail) {
-    popupContent += `<img src="${data.thumbnail}" alt="${data.title}" class="rabbithole-thumbnail">`;
+
+  if (window.selectedSource === 'Dictionary') {
+    popupContent += `<p><a href="${data.url}" target="_blank">View on Dictionary.com</a></p>`;
+  } else {
+    popupContent += `<p><a href="https://en.wikipedia.org/wiki/${encodeURIComponent(data.title)}" target="_blank">View on Wikipedia</a></p>`;
   }
-  
-  // Add extract
-  popupContent += `
-      <p>${data.extract.substring(0, 200)}${data.extract.length > 200 ? '...' : ''}</p>
-    </div>
-  `;
-  
+
+  popupContent += `</div>`;
+
   popup.innerHTML = popupContent;
-  
-  // Add event listeners
-  popup.querySelector('.rabbithole-close-btn').addEventListener('click', function() {
+
+  popup.querySelector('.rabbithole-close-btn').addEventListener('click', function () {
     popup.remove();
   });
-  
-  popup.querySelector('.rabbithole-expand-btn').addEventListener('click', function() {
-    // Remove the popup
-    popup.remove();
-    
-    // Create the expanded modal
-    createExpandedModal(data, isTreeNode ? nodeId : null);
-  });
-  
-  // Add to the DOM
+
   document.body.appendChild(popup);
-  
-  return popup;
 }
+
 
 // Function to remove all popups
 function removePopups() {
@@ -697,10 +680,9 @@ function initRabbitHole() {
             x: rect.left + window.scrollX,
             y: rect.bottom + window.scrollY + 10
           };
-          
-          console.log("Fetching Wikipedia data...");
-          // Fetch Wikipedia data for the selected text
-          const data = await fetchWikipediaData(selectedText);
+          console.log("Fetching data...");
+          // Fetch data for the selected text
+          const data = await fetchData(selectedText);
           
           if (data) {
             console.log("Wikipedia data found, creating wrapper");
@@ -765,3 +747,164 @@ document.addEventListener('DOMContentLoaded', initRabbitHole);
 setTimeout(initRabbitHole, 1000);
 
 console.log("RabbitHole content script loaded");
+
+chrome.storage.sync.get(['rabbitHoleEnabled', 'selectedSource'], function(data) {
+  if (data.rabbitHoleEnabled === false) return;
+  window.selectedSource = data.selectedSource || 'Wikipedia';
+  initRabbitHole();
+});
+
+chrome.storage.onChanged.addListener(function(changes) {
+  if ('rabbitHoleEnabled' in changes) {
+    location.reload();
+  }
+  if ('selectedSource' in changes) {
+    window.selectedSource = changes.selectedSource.newValue;
+  }
+});
+
+async function fetchData(term) {
+  console.log('Selected Source: ' + window.selectedSource);
+  if (window.selectedSource === 'Wikipedia') {
+    return fetchWikipediaData(term);
+  } else {
+      /*title: term,
+      extract: "Click to view the definition on the dictionary website.",
+      thumbnail: null,
+      url: `https://www.dictionary.com/browse/${encodeURIComponent(term)}`
+      */
+      return fetchDictionaryData(term);
+  }
+}
+
+
+async function fetchDictionaryData(term) {
+  const url = `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(term)}`;
+  try {
+    const response = await fetch(url);
+    const data = await response.json();
+    if (!data || !data.length) return null;
+    return {
+      title: term,
+      extract: data[0].meanings[0].definitions[0].definition || "No definition available",
+      thumbnail: null,
+      pageId: term,
+      url: `https://www.dictionary.com/browse/${encodeURIComponent(term)}`
+    };
+  } catch (error) {
+    console.error('Error fetching dictionary data:', error);
+    return null;
+  }
+}
+function createPopup(data, position, isTreeNode = false, nodeId = null) {
+  removePopups();
+  
+  const popup = document.createElement('div');
+  popup.className = 'rabbithole-popup';
+  popup.style.position = 'absolute';
+  popup.style.left = `${position.x}px`;
+  popup.style.top = `${position.y}px`;
+  popup.style.zIndex = '10000';
+
+  let popupContent = `
+    <div class="rabbithole-header">
+      <h3>${data.title}</h3>
+      <button class="rabbithole-expand-btn">Expand</button>
+      <button class="rabbithole-close-btn">×</button>
+    </div>
+    <div class="rabbithole-content">
+  `;
+
+  if (data.thumbnail) {
+    popupContent += `<img src="${data.thumbnail}" alt="${data.title}" class="rabbithole-thumbnail">`;
+  }
+
+  popupContent += `
+      <p>${data.extract.substring(0, 200)}${data.extract.length > 200 ? '...' : ''}</p>
+    </div>
+  `;
+
+  if (window.selectedSource === 'Dictionary') {
+    popupContent += `<div class="rabbithole-footer"><a href="${data.url}" target="_blank">View on Dictionary.com</a></div>`;
+  } else {
+    popupContent += `<div class="rabbithole-footer"><a href="https://en.wikipedia.org/wiki/${encodeURIComponent(data.title)}" target="_blank">View on Wikipedia</a></div>`;
+  }
+
+  popup.innerHTML = popupContent;
+
+  popup.querySelector('.rabbithole-close-btn').addEventListener('click', function() {
+    popup.remove();
+  });
+
+  popup.querySelector('.rabbithole-expand-btn').addEventListener('click', function() {
+    popup.remove();
+    createExpandedModal(data, isTreeNode ? nodeId : null);
+  });
+
+  document.body.appendChild(popup);
+}
+
+function createExpandedModal(data, nodeId = null) {
+  removeModals();
+  if (nodeId === null) {
+    nodeId = generateNodeId();
+    wikiTree.push({
+      id: nodeId,
+      title: data.title,
+      parentId: wikiTree.length > 0 ? wikiTree[wikiTree.length - 1].id : null
+    });
+  }
+
+  const container = document.createElement('div');
+  container.className = 'rabbithole-container';
+  container.style.position = 'fixed';
+  container.style.top = '0';
+  container.style.left = '0';
+  container.style.right = '0';
+  container.style.bottom = '0';
+  container.style.zIndex = '10001';
+  container.style.display = 'flex';
+  container.style.flexDirection = 'column';
+  container.style.alignItems = 'center';
+  container.style.justifyContent = 'center';
+  container.style.backgroundColor = 'rgba(0, 0, 0, 0.75)';
+  container.style.backdropFilter = 'blur(5px)';
+
+  const treeContainer = document.createElement('div');
+  treeContainer.className = 'rabbithole-tree-container';
+  const treeTitle = document.createElement('h3');
+  treeTitle.textContent = 'Your Rabbit Hole Journey';
+  treeContainer.appendChild(treeTitle);
+
+  const treeVisualization = document.createElement('div');
+  treeVisualization.className = 'rabbithole-tree';
+  treeVisualization.innerHTML = generateTreeHTML();
+  treeContainer.appendChild(treeVisualization);
+
+  const modal = document.createElement('div');
+  modal.className = 'rabbithole-modal';
+  let modalContent = `
+    <div class="rabbithole-modal-header">
+      <h2>${data.title}</h2>
+      <button class="rabbithole-modal-close-btn">×</button>
+    </div>
+    <div class="rabbithole-modal-body">
+  `;
+
+  if (data.thumbnail) {
+    modalContent += `<img src="${data.thumbnail}" alt="${data.title}" class="rabbithole-modal-thumbnail">`;
+  }
+
+  modalContent += `<p>${data.extract}</p>`;
+  modalContent += `<div class="rabbithole-footer"><a href="${window.selectedSource === 'Dictionary' ? data.url : `https://en.wikipedia.org/wiki/${encodeURIComponent(data.title)}`}" target="_blank">View on ${window.selectedSource === 'Dictionary' ? 'Dictionary.com' : 'Wikipedia'}</a></div>`;
+  modal.innerHTML = modalContent;
+
+  container.appendChild(treeContainer);
+  container.appendChild(modal);
+
+  container.querySelector('.rabbithole-modal-close-btn').addEventListener('click', function() {
+    container.remove();
+  });
+
+  document.body.appendChild(container);
+}

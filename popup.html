@@ -7,14 +7,6 @@
 </head>
 <body>
   <div class="popup-container">
-    <h1 class="title">RabbitHole</h1>
-    <div class="extension-toggle">
-      <label class="toggle-switch">
-        <input type="checkbox" id="extensionToggle" checked>
-        <span class="toggle-slider"></span>
-      </label>
-      <span class="toggle-label">Extension is <span id="toggleStatus">enabled</span></span>
-    </div>
     <div class="description">
       <p>Highlight text on any webpage to dive into Wikipedia articles.</p>
       <p>Follow your curiosity down the rabbit hole!</p>
@@ -28,6 +20,21 @@
         <li>Click the blue text to expand to full view</li>
         <li>Use the tree visualization to track your journey</li>
       </ol>
+    </div>
+    <h1 class="title">RabbitHole</h1>
+    <div class="extension-toggle">
+      <label class="toggle-switch">
+        <input type="checkbox" id="extensionToggle" checked>
+        <span class="toggle-slider"></span>
+      </label>
+      <span class="toggle-label">Extension is <span id="toggleStatus">enabled</span></span>
+    </div>
+    <div class="source-selection">
+      <label class="toggle-switch">
+        <input type="checkbox" id="sourceToggle">
+        <span class="toggle-slider"></span>
+      </label>
+      <span class="toggle-label">Source: <span id="currentSource">Wikipedia</span></span>
     </div>
     <div class="footer">
       <p>Made with ❤️ by RabbitHole</p>
