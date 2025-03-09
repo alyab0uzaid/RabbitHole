@@ -1,6 +1,6 @@
 /**
  * RabbitHole Animation Module
- * Adds rabbit animation when tree nodes are clicked
+ * Adds rabbit animation when tree nodes are clicked.
  */
 console.log("RabbitHole Animation Module loading");
 
