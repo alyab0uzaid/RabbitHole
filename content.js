@@ -193,20 +193,36 @@ function createPopup(data, position, isTreeNode = false, nodeId = null, sourceEl
   popup.addEventListener('mouseenter', function() {
     // Keep the popup visible when mouse is over it
     this.dataset.isHovered = 'true';
+    
+    // Remove any fadeout class that might have been added
+    this.classList.remove('rabbithole-popup-fadeout');
+    
+    console.log("Mouse entered popup");
   });
   
   popup.addEventListener('mouseleave', function() {
     // Set flag for cleanup
     this.dataset.isHovered = 'false';
-    // Add fadeout class
-    this.classList.add('rabbithole-popup-fadeout');
-    // Schedule removal
+    
+    console.log("Mouse left popup");
+    
+    // Add a small delay before starting the fadeout
+    // This helps with brief mouse movements outside the popup
     setTimeout(() => {
-      // Only remove if still not hovered
-      if (this.dataset.isHovered !== 'true' && document.body.contains(this)) {
-        this.remove();
+      // Only proceed if the popup is still not being hovered
+      if (this.dataset.isHovered !== 'true') {
+        // Add fadeout class
+        this.classList.add('rabbithole-popup-fadeout');
+        
+        // Schedule removal
+        setTimeout(() => {
+          // Final check to make sure it's still not hovered
+          if (this.dataset.isHovered !== 'true' && document.body.contains(this)) {
+            this.remove();
+          }
+        }, 200); // Match animation duration
       }
-    }, 200); // Match animation duration
+    }, 100); // Small delay before starting fadeout
   });
   
   // Make the title clickable to expand
@@ -1022,30 +1038,19 @@ function initRabbitHole() {
           
           if (data) {
             console.log("Wikipedia data found, creating wrapper");
-            // Create a wrapper span to replace the selected text
-            const wrapper = document.createElement('span');
+            
+            // Create a wrapper that looks and behaves like a link
+            const wrapper = document.createElement('a'); // Change to 'a' instead of 'span'
             wrapper.className = 'rabbithole-link';
             wrapper.textContent = selectedText;
+            wrapper.href = 'javascript:void(0)'; // Add href to make it look like a real link
+            wrapper.setAttribute('role', 'button'); // Add role for accessibility
+            wrapper.setAttribute('aria-label', `Learn more about ${selectedText}`); // Add aria-label for accessibility
             
-            // Apply explicit styling
-            wrapper.style.color = '#3a5ccc'; // explicit primary color
-            wrapper.style.textDecoration = 'underline';
-            wrapper.style.cursor = 'pointer';
-            wrapper.style.backgroundColor = 'rgba(58, 92, 204, 0.08)';
-            wrapper.style.borderRadius = '3px';
-            wrapper.style.padding = '0 3px';
-            wrapper.style.transition = 'all 0.2s ease';
+            // Do NOT add any inline styles here - rely entirely on the CSS class
+            // This ensures consistent styling with other rabbithole-links
             
-            // Add hover effects
-            wrapper.addEventListener('mouseenter', function() {
-              this.style.backgroundColor = 'rgba(58, 92, 204, 0.15)';
-            });
-            
-            wrapper.addEventListener('mouseleave', function() {
-              this.style.backgroundColor = 'rgba(58, 92, 204, 0.08)';
-            });
-            
-            // Replace the selected text with the wrapper span
+            // Replace the selected text with the wrapper
             range.deleteContents();
             range.insertNode(wrapper);
             
@@ -1060,23 +1065,46 @@ function initRabbitHole() {
                 y: rect.bottom + window.scrollY
               };
               
-              // Ensure we're using the data with the correct source
-              if (data && data.source && data.source !== window.selectedSource) {
-                // If data was fetched with a different source than current setting,
-                // we need to re-fetch with current source
-                fetchData(data.title).then(newData => {
-                  if (newData) {
-                    // Create popup with the newly fetched data
-                    createPopup(newData, position, false, null, this);
-                  }
-                });
-              } else {
-                // Create the popup with existing data
-                createPopup(data, position, false, null, this);
-              }
+              // Store the popup reference so we can check it in mouseleave
+              this.currentPopup = createPopup(data, position, false, null, this);
             });
 
-            // Make sure the click event is properly set up
+            // Add mouseleave event to remove popup with a delay
+            wrapper.addEventListener('mouseleave', function(e) {
+              // Don't immediately remove the popup
+              // Instead, set a timeout to check if the mouse moved to the popup
+              const popup = this.currentPopup;
+              if (!popup) return;
+              
+              // Store the time when the mouse left the link
+              this.mouseLeaveTime = Date.now();
+              
+              // Set a short timeout to check if the mouse moved to the popup
+              setTimeout(() => {
+                // If the popup is being hovered, don't remove it
+                if (popup.dataset.isHovered === 'true') {
+                  return;
+                }
+                
+                // If it's been less than 150ms since the mouse left, and the popup exists,
+                // check if the mouse is over the popup using document.elementFromPoint
+                if (Date.now() - this.mouseLeaveTime < 150) {
+                  const mouseX = e.clientX;
+                  const mouseY = e.clientY + 20; // Add a small offset to account for movement
+                  const elementUnderMouse = document.elementFromPoint(mouseX, mouseY);
+                  
+                  // If the element under the mouse is the popup or a child of the popup, don't remove it
+                  if (elementUnderMouse && (elementUnderMouse === popup || popup.contains(elementUnderMouse))) {
+                    return;
+                  }
+                }
+                
+                // Otherwise, remove the popup
+                removePopups();
+              }, 50); // Short delay to allow mouse to move to popup
+            });
+
+            // Add click event to show expanded modal
             wrapper.addEventListener('click', function(e) {
               // Don't show modal if disabled
               if (!isEnabled) return;

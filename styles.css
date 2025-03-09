@@ -68,16 +68,23 @@ body {
 /* Content Script Styles */
 .rabbithole-link {
   color: var(--primary-color) !important;
-  text-decoration: underline !important;
+  text-decoration: none !important;
   cursor: pointer !important;
   background-color: rgba(58, 92, 204, 0.08) !important;
   border-radius: 3px !important;
   padding: 0 3px !important;
   transition: all 0.2s ease !important;
+  display: inline !important;
+  font-weight: inherit !important;
+  font-size: inherit !important;
+  line-height: inherit !important;
+  font-family: inherit !important;
+  border-bottom: 1px solid transparent !important;
 }
 
 .rabbithole-link:hover {
   background-color: rgba(58, 92, 204, 0.15) !important;
+  border-bottom: 1px solid var(--primary-color) !important;
 }
 
 .rabbithole-popup {
@@ -1281,4 +1288,21 @@ input:checked + .toggle-slider:before {
   font-style: italic;
   padding: 20px;
   width: 100%;
+}
+
+/* Make span.rabbithole-link look exactly like a.rabbithole-link */
+span.rabbithole-link {
+  /* Ensure it looks like a link */
+  text-decoration: none !important;
+  /* Match any specific styles that a.rabbithole-link might have */
+  display: inline !important;
+  /* Add pointer cursor to make it feel like a link */
+  cursor: pointer !important;
+  border-bottom: 1px solid transparent !important;
+}
+
+/* Ensure consistent hover effects */
+span.rabbithole-link:hover {
+  background-color: rgba(58, 92, 204, 0.15) !important;
+  border-bottom: 1px solid var(--primary-color) !important;
 }
