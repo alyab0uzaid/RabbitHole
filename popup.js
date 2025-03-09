@@ -51,7 +51,7 @@ async function loadSavedTrees() {
   if (!savedTreesList) return;
   
   // Show loading
-  savedTreesList.innerHTML = '<div class="loading-trees">Loading your saved journeys...</div>';
+  savedTreesList.innerHTML = '<div class="loading-trees">Loading your saved RabbitHoles...</div>';
   
   try {
     // Get saved trees from storage
@@ -67,8 +67,8 @@ async function loadSavedTrees() {
       // No saved trees message
       savedTreesList.innerHTML = `
         <div class="no-saved-trees">
-          <p>You don't have any saved journeys yet.</p>
-          <p class="hint">Explore topics and save your journey when closing!</p>
+          <p>You don't have any saved RabbitHoles yet.</p>
+          <p class="hint">Explore topics and save your RabbitHole when closing!</p>
         </div>
       `;
       return;
@@ -139,7 +139,7 @@ async function loadSavedTrees() {
     console.error('Error loading saved trees:', error);
     savedTreesList.innerHTML = `
       <div class="error-loading-trees">
-        <p>Error loading saved journeys: ${error.message}</p>
+        <p>Error loading saved RabbitHoles: ${error.message}</p>
       </div>
     `;
   }
@@ -150,7 +150,7 @@ async function loadSavedTree(treeId) {
   try {
     const loadingIndicator = document.createElement('div');
     loadingIndicator.className = 'loading-indicator';
-    loadingIndicator.textContent = 'Loading journey...';
+    loadingIndicator.textContent = 'Loading RabbitHole...';
     document.body.appendChild(loadingIndicator);
     
     // Get current active tab
@@ -168,7 +168,7 @@ async function loadSavedTree(treeId) {
     });
   } catch (error) {
     console.error('Error loading saved tree:', error);
-    showStatusIndicator('Error loading journey');
+    showStatusIndicator('Error loading RabbitHole');
   }
 }
 
@@ -202,11 +202,11 @@ async function deleteSavedTree(treeId) {
     });
     
     console.log(`Tree with ID ${treeId} deleted successfully`);
-    showStatusIndicator('Journey deleted');
+    showStatusIndicator('RabbitHole deleted');
     return true;
   } catch (error) {
     console.error("Error deleting tree:", error);
-    showStatusIndicator('Error deleting journey');
+    showStatusIndicator('Error deleting RabbitHole');
     return false;
   }
 }

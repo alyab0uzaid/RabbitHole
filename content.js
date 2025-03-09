@@ -479,7 +479,7 @@ function createExpandedModal(data, nodeId = null) {
             if (saved) {
               // Show a success notification
               const notification = document.createElement('div');
-              notification.textContent = `Journey saved as "${treeName}"`;
+              notification.textContent = `RabbitHole saved as "${treeName}"`;
               notification.style.position = 'fixed';
               notification.style.bottom = '20px';
               notification.style.left = '50%';
@@ -1672,7 +1672,7 @@ function createSaveTreeModal(onSave, onCancel, defaultName = '') {
   
   // Add title
   const title = document.createElement('h3');
-  title.textContent = 'Save Your RabbitHole Journey';
+  title.textContent = 'Save Your RabbitHole';
   title.style.margin = '0 0 5px 0';
   title.style.color = '#333';
   title.style.fontSize = '18px';
@@ -1691,7 +1691,7 @@ function createSaveTreeModal(onSave, onCancel, defaultName = '') {
   inputContainer.style.gap = '5px';
   
   const inputLabel = document.createElement('label');
-  inputLabel.textContent = 'Name your journey:';
+  inputLabel.textContent = 'Name your RabbitHole:';
   inputLabel.style.fontSize = '14px';
   inputLabel.style.color = '#444';
   inputLabel.setAttribute('for', 'rabbithole-save-name');
@@ -1699,7 +1699,7 @@ function createSaveTreeModal(onSave, onCancel, defaultName = '') {
   const input = document.createElement('input');
   input.id = 'rabbithole-save-name';
   input.type = 'text';
-  input.placeholder = defaultName || 'My RabbitHole Journey';
+  input.placeholder = defaultName || 'My RabbitHole';
   input.value = defaultName || '';
   input.style.padding = '8px 12px';
   input.style.border = '1px solid #ddd';
@@ -1726,7 +1726,7 @@ function createSaveTreeModal(onSave, onCancel, defaultName = '') {
   cancelButton.style.fontSize = '14px';
   
   const saveButton = document.createElement('button');
-  saveButton.textContent = 'Save Journey';
+  saveButton.textContent = 'Save RabbitHole';
   saveButton.style.padding = '8px 16px';
   saveButton.style.border = 'none';
   saveButton.style.borderRadius = '4px';
@@ -1810,7 +1810,7 @@ async function loadSavedTree(treeId) {
     if (!success) {
       console.error("Failed to load tree:", treeId);
       // Show error notification
-      showNotification("Error loading saved journey. Try again later.", "error");
+      showNotification("Error loading saved RabbitHole. Try again later.", "error");
       return;
     }
     
@@ -1818,12 +1818,12 @@ async function loadSavedTree(treeId) {
     const rootNode = treeModule.wikiTree.find(node => node.parentId === null) || treeModule.wikiTree[0];
     if (!rootNode) {
       console.error("No root node found in loaded tree");
-      showNotification("Error: Could not find the starting point of your journey.", "error");
+      showNotification("Error: Could not find the starting point of your RabbitHole.", "error");
       return;
     }
     
     // Show a notification
-    showNotification(`Loaded journey: ${rootNode.title}`, "success");
+    showNotification(`Loaded RabbitHole: ${rootNode.title}`, "success");
     
     // Fetch data for the root node and create the modal
     const data = await fetchWikipediaData(rootNode.title);
@@ -1842,7 +1842,7 @@ async function loadSavedTree(treeId) {
     }
   } catch (error) {
     console.error("Error loading saved tree:", error);
-    showNotification("Error loading saved journey: " + error.message, "error");
+    showNotification("Error loading saved RabbitHole: " + error.message, "error");
   }
 }
 
