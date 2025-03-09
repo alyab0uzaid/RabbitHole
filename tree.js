@@ -86,11 +86,27 @@ function getActiveNodeId() {
 
 /**
  * Gets a node by its ID
- * @param {number} nodeId - The ID of the node to find
+ * @param {number|string} nodeId - The ID of the node to find
  * @returns {Object|null} The node object or null if not found
  */
 function getNodeById(nodeId) {
-  return wikiTree.find(node => node.id === parseInt(nodeId)) || null;
+  if (!nodeId) return null;
+  
+  try {
+    // Convert to number if it's a string
+    const id = typeof nodeId === 'string' ? parseInt(nodeId, 10) : nodeId;
+    
+    // Handle NaN
+    if (isNaN(id)) {
+      console.warn("Invalid node ID:", nodeId);
+      return null;
+    }
+    
+    return wikiTree.find(node => node.id === id) || null;
+  } catch (e) {
+    console.error("Error in getNodeById:", e);
+    return null;
+  }
 }
 
 /**
@@ -99,8 +115,25 @@ function getNodeById(nodeId) {
 function clearTree() {
   wikiTree = [];
   activeNodeId = null;
+  
+  // Clear data from sessionStorage
   sessionStorage.removeItem('rabbitHoleActiveNode');
-  console.log("Tree data cleared");
+  
+  // Clear data from localStorage if used
+  try {
+    localStorage.removeItem('rabbitHoleTreeData');
+    localStorage.removeItem('rabbitHoleActiveNode');
+    localStorage.removeItem('rabbitHoleSavedTrees');
+  } catch (e) {
+    console.error("Error clearing localStorage:", e);
+  }
+  
+  // Reset the diagram if it exists
+  if (myDiagram) {
+    myDiagram.model = new go.GraphLinksModel([], []);
+  }
+  
+  console.log("Tree data cleared completely");
 }
 
 /**
@@ -109,6 +142,48 @@ function clearTree() {
  */
 function getTreeData() {
   return wikiTree;
+}
+
+/**
+ * Renders the tree visualization in the provided container
+ * @param {Element} container - The container element for the tree visualization
+ */
+function renderTree(container) {
+  console.log("Rendering tree visualization");
+  
+  if (!container) {
+    console.error("No container provided for tree visualization");
+    return;
+  }
+  
+  // Clear the container
+  container.innerHTML = '';
+  
+  // Create the tree diagram container
+  const treeContainer = document.createElement('div');
+  treeContainer.className = 'tree-diagram-container';
+  
+  // Add node count and active node info
+  const infoDiv = document.createElement('div');
+  infoDiv.className = 'tree-status-info';
+  const activeNodeTitle = activeNodeId ? (getNodeById(activeNodeId)?.title || activeNodeId) : 'None';
+  infoDiv.textContent = `Tree nodes: ${wikiTree.length} | Active: ${activeNodeTitle}`;
+  
+  // Create a unique ID for the tree diagram
+  const uniqueId = 'tree-diagram-' + Date.now();
+  const diagramContainer = document.createElement('div');
+  diagramContainer.id = uniqueId;
+  diagramContainer.className = 'tree-diagram';
+  
+  // Add the elements to the container
+  treeContainer.appendChild(infoDiv);
+  treeContainer.appendChild(diagramContainer);
+  container.appendChild(treeContainer);
+  
+  // Initialize the tree diagram
+  setTimeout(() => {
+    initTreeDiagram(uniqueId);
+  }, 100);
 }
 
 /**
@@ -124,11 +199,11 @@ function generateTreeHTML() {
   
   // Create a container for the tree diagram with debug info
   const html = `
-    <div style="width: 100%; height: 300px; border: 1px solid #ddd; background: white;">
-      <div style="font-size: 12px; padding: 5px; color: #666; text-align: right;">
-        Tree nodes: ${nodeCount} | Active: ${activeNodeId || 'None'}
+    <div class="tree-diagram-container">
+      <div class="tree-status-info">
+        Tree nodes: ${nodeCount} | Active: ${activeNodeId ? getNodeById(activeNodeId)?.title || activeNodeId : 'None'}
       </div>
-      <div id="${uniqueId}" style="width: 100%; height: 90%;"></div>
+      <div id="${uniqueId}" class="tree-diagram"></div>
     </div>
   `;
   
@@ -149,124 +224,176 @@ function generateTreeHTML() {
  * @param {Function} onNodeClick - Callback function when a node is clicked
  */
 function setupTreeNodeHandlers(container, onNodeClick) {
-  console.log("Setting up tree node click handlers");
-  
-  // Store the callback for handling node clicks
-  window.treeNodeClickCallback = onNodeClick;
-  
-  // Initialize the tree diagram right away
-  setTimeout(() => {
-    // Find the tree diagram element - handle both cases where we might have
-    // multiple tree-diagram elements in the DOM due to rebuilding
-    const treeElements = document.querySelectorAll('#tree-diagram');
+  try {
+    console.log("Setting up tree node click handlers");
     
-    if (treeElements.length > 0) {
-      console.log(`Found ${treeElements.length} tree diagram elements`);
-      
-      // Use the most recently added element if there are multiple
-      const treeElement = treeElements[treeElements.length - 1];
-      const elementId = 'tree-diagram-' + Date.now();
-      
-      // Assign a unique ID if there are multiple elements
-      if (treeElements.length > 1) {
-        treeElement.id = elementId;
-        console.log(`Assigned unique ID ${elementId} to tree element`);
-        initTreeDiagram(elementId);
-      } else {
-        initTreeDiagram('tree-diagram');
-      }
-    } else {
-      console.warn("No tree diagram element found to initialize");
+    // Check if container exists
+    if (!container) {
+      console.error("Cannot set up tree node handlers: container is null");
+      return;
     }
-  }, 100);
+    
+    // Store the callback for handling node clicks globally
+    if (typeof onNodeClick === 'function') {
+      window.treeNodeClickCallback = onNodeClick;
+    } else {
+      console.error("Invalid click handler provided");
+      return;
+    }
+    
+    // For GoJS diagrams, the click handler is set directly in initTreeDiagram
+    if (myDiagram) {
+      console.log("GoJS diagram already initialized, click handlers should be working");
+      return;
+    }
+    
+    // For fallback tree, we need to add click handlers to all node elements
+    try {
+      const nodeElements = container.querySelectorAll('.tree-node');
+      if (!nodeElements || nodeElements.length === 0) {
+        console.log("No tree nodes found to attach handlers to");
+        return;
+      }
+      
+      nodeElements.forEach(element => {
+        try {
+          if (element) {
+            element.addEventListener('click', function(e) {
+              try {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                const nodeId = this.dataset.nodeId;
+                if (!nodeId) {
+                  console.error("Node element missing nodeId data attribute");
+                  return;
+                }
+                
+                const node = getNodeById(nodeId);
+                if (!node) {
+                  console.error("Could not find node with ID:", nodeId);
+                  return;
+                }
+                
+                console.log("Fallback tree node clicked:", node.title);
+                
+                // Set as active node
+                setActiveNode(nodeId);
+                
+                // Update active node styling
+                try {
+                  document.querySelectorAll('.tree-node').forEach(el => {
+                    if (el) el.classList.remove('active-node');
+                  });
+                  this.classList.add('active-node');
+                } catch (styleError) {
+                  console.error("Error updating node styles:", styleError);
+                }
+                
+                // Call the click callback
+                if (typeof window.treeNodeClickCallback === 'function') {
+                  window.treeNodeClickCallback(node, nodeId);
+                } else {
+                  console.error("Tree node click callback not found");
+                }
+              } catch (clickError) {
+                console.error("Error in node click handler:", clickError);
+              }
+            });
+          }
+        } catch (elementError) {
+          console.error("Error adding click handler to node element:", elementError);
+        }
+      });
+    } catch (queryError) {
+      console.error("Error querying for tree nodes:", queryError);
+    }
+  } catch (setupError) {
+    console.error("Error in setupTreeNodeHandlers:", setupError);
+  }
 }
 
 /**
- * Initialize the GoJS tree diagram
+ * Initialize the tree diagram with GoJS
  * @param {string} containerId - ID of the HTML container
  */
 function initTreeDiagram(containerId) {
-  // Check if go is available (double check to be safe)
-  let goAvailable = false;
-  try {
-    goAvailable = typeof go !== 'undefined';
-  } catch (e) {
-    console.log("GoJS not available for diagram");
-  }
-  
-  if (!goAvailable) {
-    console.log("GoJS library not available for tree diagram, using fallback");
-    renderFallbackTree(containerId);
-    return;
-  }
-  
-  // Get the container element
-  const container = document.getElementById(containerId);
-  if (!container) {
-    console.error("Tree diagram container not found:", containerId);
-    return;
-  }
-  
-  console.log("Initializing GoJS tree diagram");
+  console.log("Initializing GoJS tree diagram in container:", containerId);
   
   try {
-    // Initialize the diagram
+    // Check if GoJS is available
+    if (typeof go === 'undefined') {
+      console.warn("GoJS not available, using fallback tree");
+      renderFallbackTree(containerId);
+      return;
+    }
+    
+    isGoAvailable = true;
+    
+    // Get the container element
+    const container = document.getElementById(containerId);
+    if (!container) {
+      console.error("Container not found:", containerId);
+      return;
+    }
+    
+    // Create the diagram
     myDiagram = new go.Diagram(containerId, {
-      "undoManager.isEnabled": false,
+      "undoManager.isEnabled": true,
       layout: new go.TreeLayout({
         angle: 90,
-        layerSpacing: 30,
-        nodeSpacing: 20
+        nodeSpacing: 20,
+        layerSpacing: 40
       })
     });
     
     // Define the node template
     myDiagram.nodeTemplate =
       new go.Node("Auto")
-        .bind(new go.Binding("layerName", "isSelected", function(sel) { return sel ? "Foreground" : ""; }).ofObject())
         .add(
           new go.Shape("RoundedRectangle", {
             fill: "white",
             stroke: "#CCCCCC",
             strokeWidth: 1,
-            spot1: new go.Spot(0, 0, 5, 5),
-            spot2: new go.Spot(1, 1, -5, -5)
+            className: "go-diagram-shape"
           })
-          .bind("fill", "id", function(id) { return id === getActiveNodeId() ? "#e8f0fe" : "white" })
-          .bind("stroke", "id", function(id) { return id === getActiveNodeId() ? "#4285f4" : "#CCCCCC" })
+            .bind("fill", "isActive", function(isActive) {
+              return isActive ? "#e6f7ff" : "white";
+            })
         )
         .add(
           new go.TextBlock({
             margin: 8,
             font: "12px sans-serif",
             wrap: go.TextBlock.WrapFit,
-            editable: false
+            editable: false,
+            className: "go-diagram-text"
           })
-          .bind("text", "title")
+            .bind("text", "title")
         );
     
     // Define the link template
     myDiagram.linkTemplate =
       new go.Link({
         routing: go.Link.Orthogonal,
-        corner: 5
+        corner: 5,
+        className: "go-diagram-link"
       })
-      .add(new go.Shape({ strokeWidth: 1, stroke: "#CCCCCC" }))
-      .add(new go.Shape({ toArrow: "Standard", stroke: null, fill: "#CCCCCC" }));
+        .add(
+          new go.Shape({ stroke: "#CCCCCC", strokeWidth: 1.5 })
+        );
     
-    // Create the model data
+    // Convert tree data to GoJS format
     const nodeDataArray = [];
     const linkDataArray = [];
     
     wikiTree.forEach(node => {
-      // Add node data
       nodeDataArray.push({
         key: node.id,
         title: node.title,
-        id: node.id
+        isActive: node.id === activeNodeId
       });
       
-      // Add link data if there's a parent
       if (node.parentId !== null) {
         linkDataArray.push({
           from: node.parentId,
@@ -275,27 +402,92 @@ function initTreeDiagram(containerId) {
       }
     });
     
-    // Create the model
+    // Set the model data
     myDiagram.model = new go.GraphLinksModel(nodeDataArray, linkDataArray);
     
-    // Handle node clicks
+    // Add click handler for nodes
     myDiagram.addDiagramListener("ObjectSingleClicked", function(e) {
-      const part = e.subject.part;
-      if (part instanceof go.Node) {
+      try {
+        if (!e || !e.subject || !e.subject.part) return;
         
-        const nodeId = part.data.key;
-        console.log("Node clicked:", nodeId);
+        const part = e.subject.part;
+        if (!(part instanceof go.Node)) return;
+        
+        const nodeId = part.data ? part.data.key : null;
+        if (!nodeId) {
+          console.error("Node missing key/id in GoJS diagram");
+          return;
+        }
+        
+        const node = getNodeById(nodeId);
+        if (!node) {
+          console.error("Could not find node with ID:", nodeId, "in tree data");
+          return;
+        }
+        
+        console.log("GoJS node clicked:", node.title, "ID:", nodeId);
         
         // Set as active node
         setActiveNode(nodeId);
         
-        // Call the click callback if defined
-        const node = getNodeById(nodeId);
-        if (node && typeof window.treeNodeClickCallback === 'function') {
-          window.treeNodeClickCallback(node, nodeId);
+        // Update the diagram to show the active node
+        try {
+          myDiagram.startTransaction("update active");
+          myDiagram.model.nodeDataArray.forEach(nodeData => {
+            if (nodeData) {
+              myDiagram.model.setDataProperty(nodeData, "isActive", nodeData.key === nodeId);
+            }
+          });
+          myDiagram.commitTransaction("update active");
+        } catch (diagramError) {
+          console.error("Error updating diagram:", diagramError);
         }
+        
+        // Make sure we have the title property
+        if (!node.title) {
+          console.warn("Node missing title property:", node);
+          // Try to get title from diagram model
+          try {
+            const modelNode = myDiagram.model.findNodeDataForKey(nodeId);
+            if (modelNode && modelNode.title) {
+              node.title = modelNode.title;
+            }
+          } catch (modelError) {
+            console.error("Error accessing model data:", modelError);
+          }
+        }
+        
+        // Call the click handler if available
+        if (typeof window.treeNodeClickCallback === 'function') {
+          try {
+            // Add a small delay to ensure the UI updates before loading content
+            setTimeout(() => {
+              window.treeNodeClickCallback(node, nodeId);
+            }, 10);
+          } catch (callbackError) {
+            console.error("Error calling tree node click callback:", callbackError);
+          }
+        } else {
+          console.error("Tree node click callback not found");
+        }
+      } catch (error) {
+        console.error("Error in GoJS click handler:", error);
       }
     });
+    
+    // Hide the GoJS evaluation notice if present
+    setTimeout(() => {
+      const container = document.getElementById(containerId);
+      if (container) {
+        const parent = container.parentElement;
+        if (parent) {
+          const evaluationNotice = parent.querySelector('div:not([id])');
+          if (evaluationNotice && evaluationNotice.textContent.includes('evaluation')) {
+            evaluationNotice.style.display = 'none';
+          }
+        }
+      }
+    }, 500);
     
     console.log("GoJS diagram initialized successfully");
     
@@ -324,6 +516,7 @@ function renderFallbackTree(containerId) {
   
   // Create a simple tree using HTML
   const treeContainer = document.createElement('div');
+  treeContainer.className = 'fallback-tree-container';
   treeContainer.style.padding = '10px';
   treeContainer.style.overflowY = 'auto';
   treeContainer.style.height = '100%';
@@ -342,6 +535,7 @@ function renderFallbackTree(containerId) {
   const rootNodes = nodesByParent['root'] || [];
   if (rootNodes.length > 0) {
     const rootLevel = document.createElement('div');
+    rootLevel.className = 'tree-level';
     rootLevel.style.display = 'flex';
     rootLevel.style.flexDirection = 'column';
     rootLevel.style.gap = '10px';
@@ -350,7 +544,7 @@ function renderFallbackTree(containerId) {
       const nodeElement = createNodeElement(node);
       rootLevel.appendChild(nodeElement);
       
-      // Recursively add children
+      // Add children recursively
       appendChildren(node.id, nodeElement, nodesByParent);
     });
     
@@ -358,47 +552,52 @@ function renderFallbackTree(containerId) {
   }
   
   container.appendChild(treeContainer);
+  
+  // Add click handlers to all node elements
+  const nodeElements = container.querySelectorAll('.tree-node');
+  nodeElements.forEach(element => {
+    element.addEventListener('click', function() {
+      const nodeId = this.dataset.nodeId;
+      const node = getNodeById(parseInt(nodeId));
+      
+      if (node) {
+        // Set as active node
+        setActiveNode(nodeId);
+        
+        // Update active node styling
+        document.querySelectorAll('.tree-node').forEach(el => {
+          el.classList.remove('active-node');
+        });
+        this.classList.add('active-node');
+        
+        // Call the click callback if defined
+        if (typeof window.treeNodeClickCallback === 'function') {
+          window.treeNodeClickCallback(node, nodeId);
+        }
+      }
+    });
+  });
 }
 
 /**
- * Create a node element for the fallback tree
+ * Creates a node element for the tree
  * @param {Object} node - The node data
- * @returns {Element} The created DOM element
+ * @returns {Element} The created node element
  */
 function createNodeElement(node) {
   const element = document.createElement('div');
-  element.textContent = node.title;
+  element.className = 'tree-node';
   element.dataset.nodeId = node.id;
-  element.style.padding = '8px 12px';
-  element.style.border = '1px solid #ddd';
-  element.style.borderRadius = '4px';
-  element.style.backgroundColor = node.id === getActiveNodeId() ? '#e8f0fe' : '#f8f9fa';
-  element.style.borderColor = node.id === getActiveNodeId() ? '#4285f4' : '#ddd';
-  element.style.cursor = 'pointer';
-  element.style.marginBottom = '5px';
   
-  // Add click handler
-  element.addEventListener('click', function(e) {
-    e.stopPropagation();
-    
-    // Set as active node
-    setActiveNode(node.id);
-    
-    // Update all node styles
-    document.querySelectorAll('[data-node-id]').forEach(el => {
-      el.style.backgroundColor = '#f8f9fa';
-      el.style.borderColor = '#ddd';
-    });
-    
-    // Update this node style
-    element.style.backgroundColor = '#e8f0fe';
-    element.style.borderColor = '#4285f4';
-    
-    // Call the click callback if defined
-    if (typeof window.treeNodeClickCallback === 'function') {
-      window.treeNodeClickCallback(node, node.id);
-    }
-  });
+  // Add active class if this is the active node
+  if (node.id === activeNodeId) {
+    element.classList.add('active-node');
+  }
+  
+  const title = document.createElement('span');
+  title.textContent = node.title;
+  title.className = 'node-title';
+  element.appendChild(title);
   
   return element;
 }
@@ -414,8 +613,7 @@ function appendChildren(parentId, parentElement, nodesByParent) {
   if (children.length === 0) return;
   
   const childrenContainer = document.createElement('div');
-  childrenContainer.style.paddingLeft = '20px';
-  childrenContainer.style.marginTop = '5px';
+  childrenContainer.className = 'children-container';
   
   children.forEach(child => {
     const childElement = createNodeElement(child);
@@ -440,5 +638,6 @@ export {
   setupTreeNodeHandlers,
   clearTree,
   getTreeData,
-  initTreeDiagram
-}; 
+  initTreeDiagram,
+  renderTree
+};
