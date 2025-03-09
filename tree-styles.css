@@ -1,73 +1,105 @@
-/* RabbitHole Tree Visualization Styles */
+/* ======================================
+   TREE VISUALIZATION STYLES
+   ====================================== */
 
-/* Tree container */
+/* Tree diagram container */
+.tree-diagram-container {
+  width: 100%;
+  height: 100%;
+  background-color: transparent;
+  border: none;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Tree status info */
+.tree-status-info {
+  font-size: 12px;
+  padding: 5px;
+  color: #666;
+  text-align: right;
+  background-color: rgba(255, 255, 255, 0.7);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+/* Tree diagram */
+.tree-diagram {
+  width: 100%;
+  height: calc(100% - 25px);
+  flex-grow: 1;
+}
+
 #tree-diagram {
   width: 100%;
   height: 100%;
-  background-color: white;
-  border: 1px solid #ddd;
-  border-radius: 4px;
+  background-color: transparent;
+  border: none;
 }
 
 /* Tree node elements */
 .tree-node {
   padding: 8px 12px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  background-color: #f8f9fa;
+  background-color: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 6px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  margin: 5px;
+  transition: all 0.2s ease;
   cursor: pointer;
-  margin-bottom: 5px;
   font-size: 14px;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
 /* Active node styling */
 .tree-node.active-node,
-.tree-node[data-active="true"] {
-  background-color: #e8f0fe !important;
-  border-color: #4285f4 !important;
-  box-shadow: 0 1px 3px rgba(66, 133, 244, 0.3);
+.tree-node.active {
+  background-color: rgba(230, 247, 255, 0.9);
+  border-color: rgba(0, 120, 212, 0.5);
+  box-shadow: 0 2px 8px rgba(0, 120, 212, 0.2);
 }
 
 /* Hover effect for nodes */
 .tree-node:hover {
-  background-color: #e9ecef;
-  border-color: #adb5bd;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+/* Hide GoJS evaluation notice */
+.rabbithole-tree-container canvas + div {
+  display: none !important;
+}
+
+/* GoJS specific styles */
+.go-diagram-node {
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.go-diagram-shape {
+  fill: white;
+  stroke: #CCCCCC;
+  stroke-width: 1.5px;
+}
+
+.go-diagram-node.active .go-diagram-shape {
+  fill: #e6f7ff;
+  stroke: #1890ff;
+  stroke-width: 2px;
+}
+
+.go-diagram-text {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 14px;
+  color: #333;
+}
+
+.go-diagram-link {
+  stroke: #CCCCCC;
+  stroke-width: 1.5px;
 }
 
 /* Children container */
 .children-container {
   padding-left: 20px;
   margin-top: 5px;
-}
-
-/* GoJS specific styles */
-.go-diagram-node {
-  border-radius: 6px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-}
-
-/* Base node colors */
-.go-diagram-shape {
-  fill: #f8f9fa;
-  stroke: #ddd;
-}
-
-/* Active node colors */
-.go-diagram-node.active .go-diagram-shape {
-  fill: #e8f0fe;
-  stroke: #4285f4;
-}
-
-/* Node text */
-.go-diagram-text {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  font-size: 13px;
-  color: #333;
-}
-
-/* Path between nodes */
-.go-diagram-link {
-  stroke: #ccc;
 } 
