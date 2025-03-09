@@ -50,6 +50,147 @@ function generateNodeId() {
 }
 
 /**
+ * Saves the current tree with a given name
+ * @param {string} treeName - Name to save the tree under
+ * @returns {Promise<boolean>} Success status
+ */
+async function saveTree(treeName) {
+  if (!wikiTree || wikiTree.length === 0) {
+    console.warn("No tree data to save");
+    return false;
+  }
+  
+  try {
+    // Generate a unique ID for this saved tree
+    const treeId = 'tree_' + Date.now();
+    
+    // Get the root node title for metadata
+    const rootNode = wikiTree.find(node => node.parentId === null) || wikiTree[0];
+    const rootTitle = rootNode ? rootNode.title : 'Unnamed Root';
+    
+    // Create tree data object with metadata
+    const treeData = {
+      id: treeId,
+      name: treeName || rootTitle,
+      rootTitle: rootTitle,
+      nodeCount: wikiTree.length,
+      dateCreated: new Date().toISOString(),
+      lastModified: new Date().toISOString(),
+      nodes: JSON.parse(JSON.stringify(wikiTree)) // Deep copy to avoid reference issues
+    };
+    
+    // First get existing saved trees
+    const savedTreesData = await new Promise(resolve => {
+      chrome.storage.sync.get(['savedTrees'], result => {
+        resolve(result.savedTrees || {});
+      });
+    });
+    
+    // Add this tree to the saved trees
+    savedTreesData[treeId] = treeData;
+    
+    // Save updated list back to storage
+    await new Promise(resolve => {
+      chrome.storage.sync.set({ 'savedTrees': savedTreesData }, resolve);
+    });
+    
+    console.log(`Tree saved successfully as "${treeName}"`);
+    return true;
+  } catch (error) {
+    console.error("Error saving tree:", error);
+    return false;
+  }
+}
+
+/**
+ * Loads a saved tree
+ * @param {string} treeId - ID of the tree to load
+ * @returns {Promise<boolean>} Success status
+ */
+async function loadTree(treeId) {
+  try {
+    // Get saved trees
+    const savedTreesData = await new Promise(resolve => {
+      chrome.storage.sync.get(['savedTrees'], result => {
+        resolve(result.savedTrees || {});
+      });
+    });
+    
+    // Check if the requested tree exists
+    if (!savedTreesData[treeId]) {
+      console.warn(`Tree with ID ${treeId} not found`);
+      return false;
+    }
+    
+    // Replace current tree with saved tree
+    wikiTree = JSON.parse(JSON.stringify(savedTreesData[treeId].nodes));
+    
+    // Set active node to root
+    const rootNode = wikiTree.find(node => node.parentId === null) || wikiTree[0];
+    if (rootNode) {
+      activeNodeId = rootNode.id;
+    }
+    
+    console.log(`Tree "${savedTreesData[treeId].name}" loaded successfully`);
+    
+    // Update last accessed time
+    savedTreesData[treeId].lastAccessed = new Date().toISOString();
+    await new Promise(resolve => {
+      chrome.storage.sync.set({ 'savedTrees': savedTreesData }, resolve);
+    });
+    
+    return true;
+  } catch (error) {
+    console.error("Error loading tree:", error);
+    return false;
+  }
+}
+
+/**
+ * Gets all saved trees
+ * @returns {Promise<Object>} Object containing all saved trees
+ */
+async function getSavedTrees() {
+  return new Promise(resolve => {
+    chrome.storage.sync.get(['savedTrees'], result => {
+      resolve(result.savedTrees || {});
+    });
+  });
+}
+
+/**
+ * Deletes a saved tree
+ * @param {string} treeId - ID of the tree to delete
+ * @returns {Promise<boolean>} Success status
+ */
+async function deleteSavedTree(treeId) {
+  try {
+    // Get saved trees
+    const savedTreesData = await getSavedTrees();
+    
+    // Check if the tree exists
+    if (!savedTreesData[treeId]) {
+      console.warn(`Tree with ID ${treeId} not found`);
+      return false;
+    }
+    
+    // Delete the tree
+    delete savedTreesData[treeId];
+    
+    // Save updated list back to storage
+    await new Promise(resolve => {
+      chrome.storage.sync.set({ 'savedTrees': savedTreesData }, resolve);
+    });
+    
+    console.log(`Tree with ID ${treeId} deleted successfully`);
+    return true;
+  } catch (error) {
+    console.error("Error deleting tree:", error);
+    return false;
+  }
+}
+
+/**
  * Sets the active node in the tree
  * @param {number} nodeId - ID of the node to set as active
  */
@@ -639,5 +780,9 @@ export {
   clearTree,
   getTreeData,
   initTreeDiagram,
-  renderTree
+  renderTree,
+  saveTree,
+  loadTree,
+  getSavedTrees,
+  deleteSavedTree
 };

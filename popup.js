@@ -45,6 +45,172 @@ function showStatusIndicator(message) {
   }, 2000);
 }
 
+// Load and display saved trees
+async function loadSavedTrees() {
+  const savedTreesList = document.getElementById('savedTreesList');
+  if (!savedTreesList) return;
+  
+  // Show loading
+  savedTreesList.innerHTML = '<div class="loading-trees">Loading your saved journeys...</div>';
+  
+  try {
+    // Get saved trees from storage
+    const savedTrees = await new Promise(resolve => {
+      chrome.storage.sync.get(['savedTrees'], result => {
+        resolve(result.savedTrees || {});
+      });
+    });
+    
+    // Check if we have saved trees
+    const treeIds = Object.keys(savedTrees);
+    if (treeIds.length === 0) {
+      // No saved trees message
+      savedTreesList.innerHTML = `
+        <div class="no-saved-trees">
+          <p>You don't have any saved journeys yet.</p>
+          <p class="hint">Explore topics and save your journey when closing!</p>
+        </div>
+      `;
+      return;
+    }
+    
+    // Sort trees by lastModified date (most recent first)
+    treeIds.sort((a, b) => {
+      const dateA = new Date(savedTrees[a].lastModified || savedTrees[a].dateCreated);
+      const dateB = new Date(savedTrees[b].lastModified || savedTrees[b].dateCreated);
+      return dateB - dateA;
+    });
+    
+    // Create HTML for saved trees
+    let treesHTML = '';
+    treeIds.forEach(treeId => {
+      const tree = savedTrees[treeId];
+      const date = new Date(tree.lastModified || tree.dateCreated);
+      const formattedDate = date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+      
+      treesHTML += `
+        <div class="saved-tree-item" data-tree-id="${treeId}">
+          <div class="saved-tree-info">
+            <h4 class="saved-tree-name">${tree.name}</h4>
+            <div class="saved-tree-meta">
+              <span class="saved-tree-root">${tree.rootTitle}</span>
+              <span class="saved-tree-nodes">${tree.nodeCount} nodes</span>
+              <span class="saved-tree-date">${formattedDate}</span>
+            </div>
+          </div>
+          <div class="saved-tree-actions">
+            <button class="load-tree-btn" data-tree-id="${treeId}" title="Load this journey">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M19 19H5V5h7V3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z" fill="currentColor"/>
+              </svg>
+            </button>
+            <button class="delete-tree-btn" data-tree-id="${treeId}" title="Delete this journey">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" fill="currentColor"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+      `;
+    });
+    
+    // Update the content
+    savedTreesList.innerHTML = treesHTML;
+    
+    // Add event listeners to the buttons
+    document.querySelectorAll('.load-tree-btn').forEach(button => {
+      button.addEventListener('click', async (e) => {
+        const treeId = e.currentTarget.getAttribute('data-tree-id');
+        console.log(`Loading tree: ${treeId}`);
+        await loadSavedTree(treeId);
+      });
+    });
+    
+    document.querySelectorAll('.delete-tree-btn').forEach(button => {
+      button.addEventListener('click', async (e) => {
+        const treeId = e.currentTarget.getAttribute('data-tree-id');
+        await deleteSavedTree(treeId);
+        // Reload the list
+        loadSavedTrees();
+      });
+    });
+    
+  } catch (error) {
+    console.error('Error loading saved trees:', error);
+    savedTreesList.innerHTML = `
+      <div class="error-loading-trees">
+        <p>Error loading saved journeys: ${error.message}</p>
+      </div>
+    `;
+  }
+}
+
+// Function to load a saved tree
+async function loadSavedTree(treeId) {
+  try {
+    const loadingIndicator = document.createElement('div');
+    loadingIndicator.className = 'loading-indicator';
+    loadingIndicator.textContent = 'Loading journey...';
+    document.body.appendChild(loadingIndicator);
+    
+    // Get current active tab
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    
+    // Send message to content script to load the tree
+    chrome.tabs.sendMessage(tab.id, {
+      action: 'loadSavedTree',
+      treeId: treeId
+    }, (response) => {
+      document.body.removeChild(loadingIndicator);
+      
+      // Close the popup window
+      window.close();
+    });
+  } catch (error) {
+    console.error('Error loading saved tree:', error);
+    showStatusIndicator('Error loading journey');
+  }
+}
+
+// Function to delete a saved tree
+async function deleteSavedTree(treeId) {
+  try {
+    // Get saved trees
+    const savedTreesData = await new Promise(resolve => {
+      chrome.storage.sync.get(['savedTrees'], result => {
+        resolve(result.savedTrees || {});
+      });
+    });
+    
+    // Check if the tree exists
+    if (!savedTreesData[treeId]) {
+      console.warn(`Tree with ID ${treeId} not found`);
+      return false;
+    }
+    
+    // Ask for confirmation
+    if (!confirm(`Are you sure you want to delete "${savedTreesData[treeId].name}"?`)) {
+      return false;
+    }
+    
+    // Delete the tree
+    delete savedTreesData[treeId];
+    
+    // Save updated list back to storage
+    await new Promise(resolve => {
+      chrome.storage.sync.set({ 'savedTrees': savedTreesData }, resolve);
+    });
+    
+    console.log(`Tree with ID ${treeId} deleted successfully`);
+    showStatusIndicator('Journey deleted');
+    return true;
+  } catch (error) {
+    console.error("Error deleting tree:", error);
+    showStatusIndicator('Error deleting journey');
+    return false;
+  }
+}
+
 // Get the necessary elements from popup.html
 document.addEventListener('DOMContentLoaded', function() {
   console.log('RabbitHole popup loaded');
@@ -110,6 +276,9 @@ document.addEventListener('DOMContentLoaded', function() {
       this.style.boxShadow = 'none';
     });
   });
+  
+  // Load saved trees
+  loadSavedTrees();
 });
 
 // Function to handle fetching and displaying full article content
