@@ -51,12 +51,21 @@ async function fetchWikipediaData(term) {
     return null;
   }
   
+  if (!term) {
+    console.error("No search term provided to fetchWikipediaData");
+    return null;
+  }
+  
   console.log("Fetching Wikipedia data for:", term);
   const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(term)}&format=json&origin=*`;
   
   try {
     // First, search for the term
     const searchResponse = await fetch(searchUrl);
+    if (!searchResponse.ok) {
+      throw new Error(`Search request failed with status ${searchResponse.status}`);
+    }
+    
     const searchData = await searchResponse.json();
     
     console.log("Search results:", searchData);
@@ -74,10 +83,19 @@ async function fetchWikipediaData(term) {
     const summaryUrl = `https://en.wikipedia.org/w/api.php?action=query&prop=extracts|pageimages&exintro=1&explaintext=1&titles=${encodeURIComponent(pageTitle)}&format=json&pithumbsize=300&origin=*`;
     
     const summaryResponse = await fetch(summaryUrl);
+    if (!summaryResponse.ok) {
+      throw new Error(`Summary request failed with status ${summaryResponse.status}`);
+    }
+    
     const summaryData = await summaryResponse.json();
     
     // Extract the page ID
     const pageId = Object.keys(summaryData.query.pages)[0];
+    if (pageId === '-1') {
+      console.error("Wikipedia page not found for:", pageTitle);
+      return null;
+    }
+    
     const page = summaryData.query.pages[pageId];
     
     console.log("Wikipedia page data:", page);
@@ -86,11 +104,12 @@ async function fetchWikipediaData(term) {
       title: page.title,
       extract: page.extract || "No extract available",
       thumbnail: page.thumbnail ? page.thumbnail.source : null,
-      pageId: pageId
+      pageId: pageId,
+      url: `https://en.wikipedia.org/wiki/${encodeURIComponent(pageTitle)}`
     };
   } catch (error) {
     console.error('Error fetching Wikipedia data:', error);
-    return null;
+    throw error; // Re-throw to allow catching in the calling function
   }
 }
 
@@ -346,13 +365,20 @@ function createExpandedModal(data, nodeId = null) {
     return;
   }
   
-  // Remove any existing modals
-  removeModals(false);
+  // Remove any existing modals but don't clear the tree data yet
+  // We'll only clear tree data when the modal is closed
+  const existingContainer = document.querySelector('.rabbithole-container');
+  if (existingContainer) {
+    existingContainer.remove();
+  }
+  
+  // Check if this is a fresh start or continuing a session
+  const isNewSession = !nodeId && treeModule.wikiTree.length === 0;
   
   // If this is a new topic (not from tree), add it to the tree
-  if (nodeId === null && data.title) {
+  if (!nodeId && data.title) {
     // Check if we already have an active session
-    if (treeModule.wikiTree.length === 0) {
+    if (isNewSession) {
       // This is the first node in a new session
       nodeId = treeModule.addTreeNode(data.title, null);
       console.log("Started new session with root node:", data.title);
@@ -396,6 +422,12 @@ function createExpandedModal(data, nodeId = null) {
   closeButton.textContent = '×';
   closeButton.className = 'rabbithole-modal-close-btn';
   closeButton.onclick = () => {
+    // Clear the tree data only when EXITING the entire session
+    if (treeModule && treeModule.clearTree) {
+      treeModule.clearTree();
+      console.log("Tree data cleared on modal close");
+    }
+    
     document.body.removeChild(overlay);
     document.body.style.overflow = 'auto';
   };
@@ -449,12 +481,29 @@ function createExpandedModal(data, nodeId = null) {
   // Process the article content
   processArticleContent(data.title, contentDiv);
   
-  // Define the node click handler function
+  // Define the node click handler function - this PRESERVES the tree during navigation
   window.treeNodeClickCallback = async function(nodeInfo, clickedNodeId) {
-    console.log("Tree node clicked:", nodeInfo.title);
+    console.log("Tree node clicked:", nodeInfo);
+    
+    // Basic validation - avoid errors with null/undefined
+    if (!nodeInfo || !nodeInfo.title) {
+      console.error("Invalid node info:", nodeInfo);
+      if (contentDiv) {
+        contentDiv.innerHTML = '<p class="error">Error: Invalid node information</p>';
+      }
+      return;
+    }
     
     // Set this node as the active one
-    treeModule.setActiveNode(clickedNodeId);
+    if (treeModule && treeModule.setActiveNode) {
+      treeModule.setActiveNode(clickedNodeId);
+    }
+    
+    // Make sure contentDiv exists
+    if (!contentDiv) {
+      console.error("Content div not found");
+      return;
+    }
     
     // Show loading state
     contentDiv.innerHTML = '<p class="loading">Loading article content...</p>';
@@ -462,40 +511,57 @@ function createExpandedModal(data, nodeId = null) {
     try {
       // Load the content for this node
       const nodeData = await fetchWikipediaData(nodeInfo.title);
-      if (nodeData) {
-        // Update the modal title
+      
+      if (!nodeData) {
+        console.error("No data returned for:", nodeInfo.title);
+        contentDiv.innerHTML = '<p class="error">Could not find content for: ' + nodeInfo.title + '</p>';
+        return;
+      }
+      
+      // Update the modal title (if it exists)
+      if (title) {
         title.textContent = nodeData.title;
-        
-        // Process the article content
-        await processArticleContent(nodeData.title, contentDiv);
-        
-        // Update thumbnail if available
-        if (nodeData.thumbnail) {
-          let thumbnail = modal.querySelector('.rabbithole-modal-thumbnail');
-          if (!thumbnail) {
-            thumbnail = document.createElement('img');
-            thumbnail.className = 'rabbithole-modal-thumbnail';
-            body.insertBefore(thumbnail, body.firstChild);
-          }
-          thumbnail.src = nodeData.thumbnail;
-          thumbnail.alt = nodeData.title;
+      }
+      
+      // Process the article content
+      await processArticleContent(nodeData.title, contentDiv);
+      
+      // Update thumbnail if available and elements exist
+      if (nodeData.thumbnail && body) {
+        let thumbnail = modal ? modal.querySelector('.rabbithole-modal-thumbnail') : null;
+        if (!thumbnail) {
+          thumbnail = document.createElement('img');
+          thumbnail.className = 'rabbithole-modal-thumbnail';
+          body.insertBefore(thumbnail, body.firstChild);
         }
-        
-        // Update tree visualization to reflect the active node
+        thumbnail.src = nodeData.thumbnail;
+        thumbnail.alt = nodeData.title;
+      }
+      
+      // Update tree visualization to reflect the active node (safely)
+      if (treeModule && treeVisualization) {
         if (treeModule.renderTree) {
           treeModule.renderTree(treeVisualization);
         } else if (treeModule.generateTreeHTML) {
           treeVisualization.innerHTML = treeModule.generateTreeHTML();
           
-          // Re-setup click handlers since HTML was replaced
-          setTimeout(() => {
-            treeModule.setupTreeNodeHandlers(overlay, window.treeNodeClickCallback);
-          }, 100);
+          // Re-setup click handlers since HTML was replaced (safely)
+          if (overlay) {
+            setTimeout(() => {
+              try {
+                treeModule.setupTreeNodeHandlers(overlay, window.treeNodeClickCallback);
+              } catch (err) {
+                console.error("Error setting up tree node handlers:", err);
+              }
+            }, 100);
+          }
         }
       }
     } catch (error) {
-      console.error("Error loading node content:", error);
-      contentDiv.innerHTML = '<p class="error">Error loading content. Please try again.</p>';
+      console.error("Error loading node content:", error, "for node:", nodeInfo);
+      if (contentDiv) {
+        contentDiv.innerHTML = `<p class="error">Error loading content: ${error.message}. Please try again.</p>`;
+      }
     }
   };
   
@@ -516,20 +582,28 @@ function createExpandedModal(data, nodeId = null) {
   }
   
   // Add click handler to close when clicking overlay background
-  overlay.addEventListener('click', (e) => {
-    if (e.target === overlay) {
-      document.body.removeChild(overlay);
-      document.body.style.overflow = 'auto';
-    }
-  });
+  if (overlay) {
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) {
+        // Clear the tree data only when EXITING the entire session
+        if (treeModule && treeModule.clearTree) {
+          treeModule.clearTree();
+          console.log("Tree data cleared on overlay click");
+        }
+        
+        document.body.removeChild(overlay);
+        document.body.style.overflow = 'auto';
+      }
+    });
+  }
   
   return { modal, overlay, treeContainer };
 }
 
 // Function to remove all modals
-function removeModals(clearTreeData = true) {
+function removeModals(clearTreeData = false) {
   // Clear the tree data only if explicitly requested
-  if (clearTreeData && treeModule) {
+  if (clearTreeData && treeModule && treeModule.clearTree) {
     treeModule.clearTree();
     console.log("Tree cleared in removeModals");
   } else {
@@ -1222,156 +1296,55 @@ async function fetchDictionaryData(term) {
 
 // Update the processArticleContent function to properly display the content
 async function processArticleContent(title, container) {
+  if (!title || !container) {
+    console.error("Missing required parameters for processArticleContent", { title, container });
+    return;
+  }
+  
   console.log("Processing article content for:", title);
-  const html = await fetchFullArticle(title, container);
   
-  if (!html) return;
-  
-  // Create a temporary element to parse the HTML
-  const tempElement = document.createElement('div');
-  tempElement.innerHTML = html;
-  
-  if (window.selectedSource === 'Wikipedia') {
-    // Wikipedia-specific processing
+  try {
+    const html = await fetchFullArticle(title, container);
+    if (!html) return;
     
-    // Remove unwanted elements
-    const unwanted = tempElement.querySelectorAll('.mw-editsection, #coordinates, .error, .mw-empty-elt');
-    unwanted.forEach(el => el.remove());
+    // Create a temporary element to parse the HTML
+    const tempElement = document.createElement('div');
+    tempElement.innerHTML = html;
     
-    // Fix image URLs
-    const images = tempElement.querySelectorAll('img');
-    const processedImages = new Set(); // Track processed images to avoid duplicates
-    
-    images.forEach(img => {
-      if (img.src) {
-        // Skip if we've already processed an image with this src
-        if (processedImages.has(img.src)) {
-          img.remove();
-          return;
-        }
-        
-        // Add to processed set
-        processedImages.add(img.src);
-        
-        // Fix relative URLs
-        if (img.src.startsWith('//')) {
-          img.src = 'https:' + img.src;
-        }
-        
-        // Make images open in a new tab when clicked
-        img.addEventListener('click', function(e) {
-          e.preventDefault();
-          window.open(this.src, '_blank');
-        });
-        
-        // Add pointer cursor
-        img.style.cursor = 'pointer';
-      }
-    });
-    
-    // Fix tables
-    const tables = tempElement.querySelectorAll('table');
-    tables.forEach(table => {
-      table.classList.add('rabbithole-table');
-      table.setAttribute('border', '1');
-      table.setAttribute('cellpadding', '4');
-      table.setAttribute('cellspacing', '0');
+    if (window.selectedSource === 'Wikipedia') {
+      // Wikipedia-specific processing
       
-      // Make sure tables aren't too wide
-      table.style.maxWidth = '100%';
-      table.style.overflowX = 'auto';
-      table.style.display = 'block';
-    });
-  }
-  
-  // Set the content
-  container.innerHTML = '';
-  
-  // Add a source-specific link at the top
-  const sourceLink = document.createElement('div');
-  sourceLink.className = 'rabbithole-wiki-link';
-  
-  if (window.selectedSource === 'Wikipedia') {
-    sourceLink.innerHTML = `<a href="https://en.wikipedia.org/wiki/${encodeURIComponent(title)}" target="_blank" rel="noopener noreferrer">
-      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-        <path d="M8 0C3.58 0 0 3.58 0 8c0 4.42 3.58 8 8 8s8-3.58 8-8c0-4.42-3.58-8-8-8zm0 7.8L5.67 4.83l-.66.67L8 8.2l2.99-2.7-.66-.67L8 7.8z"/>
-      </svg>
-      View this article on Wikipedia
-    </a>`;
-  } else {
-    sourceLink.innerHTML = `<a href="https://www.dictionary.com/browse/${encodeURIComponent(title)}" target="_blank" rel="noopener noreferrer">
-      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-        <path d="M8 0C3.58 0 0 3.58 0 8c0 4.42 3.58 8 8 8s8-3.58 8-8c0-4.42-3.58-8-8-8zm0 7.8L5.67 4.83l-.66.67L8 8.2l2.99-2.7-.66-.67L8 7.8z"/>
-      </svg>
-      View full definition on Dictionary.com
-    </a>`;
-  }
-  
-  container.appendChild(sourceLink);
-  
-  // Add the article content
-  container.appendChild(tempElement);
-  
-  // Process links only for Wikipedia content
-  if (window.selectedSource === 'Wikipedia') {
-    processWikiLinks(tempElement);
-  }
-  
-  // Add source toggle directly in the modal
-  // This allows switching without going back to the popup
-  const toggleContainer = document.createElement('div');
-  toggleContainer.className = 'rabbithole-source-toggle';
-  toggleContainer.innerHTML = `
-    <div class="extension-toggle">
-      <label class="toggle-switch">
-        <input type="checkbox" id="modalSourceToggle" ${window.selectedSource === 'Dictionary' ? 'checked' : ''}>
-        <span class="toggle-slider"></span>
-      </label>
-      <span class="toggle-label">Source: <span id="modalCurrentSource">${window.selectedSource}</span></span>
-    </div>
-  `;
-  
-  // Add the toggle before the content
-  container.insertBefore(toggleContainer, sourceLink);
-  
-  // Add event listener for the toggle
-  const modalToggle = container.querySelector('#modalSourceToggle');
-  modalToggle.addEventListener('change', async function() {
-    const newSource = this.checked ? 'Dictionary' : 'Wikipedia';
-    console.log("Changing source in modal to:", newSource);
-    
-    // Debug
-    console.log("Current source before change:", window.selectedSource);
-    
-    // Update the display
-    const sourceLabel = container.querySelector('#modalCurrentSource');
-    if (sourceLabel) {
-      sourceLabel.textContent = newSource;
+      // Remove unwanted elements
+      const unwanted = tempElement.querySelectorAll('.mw-editsection, #coordinates, .error, .mw-empty-elt');
+      unwanted.forEach(el => el.remove());
+      
+      // Fix image URLs
+      const images = tempElement.querySelectorAll('img');
+      const processedImages = new Set(); // Track processed images to avoid duplicates
+      
+      images.forEach(img => {
+        if (img.src) {
+          // Fix the image URL if it's a relative path
+          if (img.src.startsWith('/')) {
+            img.src = 'https://en.wikipedia.org' + img.src;
+          }
+          
+          processedImages.add(img.src);
+        }
+      });
     }
     
-    // Save the setting
-    window.selectedSource = newSource;
-    chrome.storage.sync.set({ 'selectedSource': newSource }, function() {
-      console.log("Source setting saved:", newSource);
-    });
+    // Set the processed content
+    container.innerHTML = tempElement.innerHTML;
     
-    console.log("Source changed to:", window.selectedSource);
-    
-    // Clear the container first
-    const contentArea = container.querySelector('.rabbithole-article-content');
-    if (contentArea) {
-      contentArea.innerHTML = `
-        <div class="rabbithole-loading">
-          <div class="loading-spinner"></div>
-          <p>Loading content from ${newSource}...</p>
-        </div>
-      `;
+    // Process internal wiki links if this is a Wikipedia article
+    if (window.selectedSource === 'Wikipedia') {
+      processWikiLinks(container);
     }
-    
-    // Reload the content with the new source
-    console.log("Reloading content with new source:", window.selectedSource);
-    await processArticleContent(title, container.querySelector('.rabbithole-article-content'));
-  });
+  } catch (error) {
+    console.error("Error in processArticleContent:", error);
+    container.innerHTML = `<p class="error">Error processing content: ${error.message}</p>`;
+  }
 }
 
 // Add new function after createExpandedModal

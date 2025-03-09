@@ -86,11 +86,27 @@ function getActiveNodeId() {
 
 /**
  * Gets a node by its ID
- * @param {number} nodeId - The ID of the node to find
+ * @param {number|string} nodeId - The ID of the node to find
  * @returns {Object|null} The node object or null if not found
  */
 function getNodeById(nodeId) {
-  return wikiTree.find(node => node.id === parseInt(nodeId)) || null;
+  if (!nodeId) return null;
+  
+  try {
+    // Convert to number if it's a string
+    const id = typeof nodeId === 'string' ? parseInt(nodeId, 10) : nodeId;
+    
+    // Handle NaN
+    if (isNaN(id)) {
+      console.warn("Invalid node ID:", nodeId);
+      return null;
+    }
+    
+    return wikiTree.find(node => node.id === id) || null;
+  } catch (e) {
+    console.error("Error in getNodeById:", e);
+    return null;
+  }
 }
 
 /**
@@ -99,8 +115,25 @@ function getNodeById(nodeId) {
 function clearTree() {
   wikiTree = [];
   activeNodeId = null;
+  
+  // Clear data from sessionStorage
   sessionStorage.removeItem('rabbitHoleActiveNode');
-  console.log("Tree data cleared");
+  
+  // Clear data from localStorage if used
+  try {
+    localStorage.removeItem('rabbitHoleTreeData');
+    localStorage.removeItem('rabbitHoleActiveNode');
+    localStorage.removeItem('rabbitHoleSavedTrees');
+  } catch (e) {
+    console.error("Error clearing localStorage:", e);
+  }
+  
+  // Reset the diagram if it exists
+  if (myDiagram) {
+    myDiagram.model = new go.GraphLinksModel([], []);
+  }
+  
+  console.log("Tree data cleared completely");
 }
 
 /**
@@ -191,46 +224,93 @@ function generateTreeHTML() {
  * @param {Function} onNodeClick - Callback function when a node is clicked
  */
 function setupTreeNodeHandlers(container, onNodeClick) {
-  console.log("Setting up tree node click handlers");
-  
-  // Store the callback for handling node clicks globally
-  window.treeNodeClickCallback = onNodeClick;
-  
-  // For GoJS diagrams, the click handler is set directly in initTreeDiagram
-  // This is just a safety measure in case the diagram wasn't initialized yet
-  if (myDiagram) {
-    console.log("GoJS diagram already initialized, click handlers should be working");
-    return;
-  }
-  
-  // For fallback tree, we need to add click handlers to all node elements
-  const nodeElements = container.querySelectorAll('.tree-node');
-  nodeElements.forEach(element => {
-    element.addEventListener('click', function() {
-      const nodeId = this.dataset.nodeId;
-      const node = getNodeById(parseInt(nodeId));
-      
-      if (node) {
-        console.log("Fallback tree node clicked:", node.title);
-        
-        // Set as active node
-        setActiveNode(nodeId);
-        
-        // Update active node styling
-        document.querySelectorAll('.tree-node').forEach(el => {
-          el.classList.remove('active-node');
-        });
-        this.classList.add('active-node');
-        
-        // Call the click callback
-        if (typeof window.treeNodeClickCallback === 'function') {
-          window.treeNodeClickCallback(node, nodeId);
-        } else {
-          console.error("Tree node click callback not found");
-        }
+  try {
+    console.log("Setting up tree node click handlers");
+    
+    // Check if container exists
+    if (!container) {
+      console.error("Cannot set up tree node handlers: container is null");
+      return;
+    }
+    
+    // Store the callback for handling node clicks globally
+    if (typeof onNodeClick === 'function') {
+      window.treeNodeClickCallback = onNodeClick;
+    } else {
+      console.error("Invalid click handler provided");
+      return;
+    }
+    
+    // For GoJS diagrams, the click handler is set directly in initTreeDiagram
+    if (myDiagram) {
+      console.log("GoJS diagram already initialized, click handlers should be working");
+      return;
+    }
+    
+    // For fallback tree, we need to add click handlers to all node elements
+    try {
+      const nodeElements = container.querySelectorAll('.tree-node');
+      if (!nodeElements || nodeElements.length === 0) {
+        console.log("No tree nodes found to attach handlers to");
+        return;
       }
-    });
-  });
+      
+      nodeElements.forEach(element => {
+        try {
+          if (element) {
+            element.addEventListener('click', function(e) {
+              try {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                const nodeId = this.dataset.nodeId;
+                if (!nodeId) {
+                  console.error("Node element missing nodeId data attribute");
+                  return;
+                }
+                
+                const node = getNodeById(nodeId);
+                if (!node) {
+                  console.error("Could not find node with ID:", nodeId);
+                  return;
+                }
+                
+                console.log("Fallback tree node clicked:", node.title);
+                
+                // Set as active node
+                setActiveNode(nodeId);
+                
+                // Update active node styling
+                try {
+                  document.querySelectorAll('.tree-node').forEach(el => {
+                    if (el) el.classList.remove('active-node');
+                  });
+                  this.classList.add('active-node');
+                } catch (styleError) {
+                  console.error("Error updating node styles:", styleError);
+                }
+                
+                // Call the click callback
+                if (typeof window.treeNodeClickCallback === 'function') {
+                  window.treeNodeClickCallback(node, nodeId);
+                } else {
+                  console.error("Tree node click callback not found");
+                }
+              } catch (clickError) {
+                console.error("Error in node click handler:", clickError);
+              }
+            });
+          }
+        } catch (elementError) {
+          console.error("Error adding click handler to node element:", elementError);
+        }
+      });
+    } catch (queryError) {
+      console.error("Error querying for tree nodes:", queryError);
+    }
+  } catch (setupError) {
+    console.error("Error in setupTreeNodeHandlers:", setupError);
+  }
 }
 
 /**
@@ -327,33 +407,71 @@ function initTreeDiagram(containerId) {
     
     // Add click handler for nodes
     myDiagram.addDiagramListener("ObjectSingleClicked", function(e) {
-      const part = e.subject.part;
-      if (part instanceof go.Node) {
-        const nodeId = part.data.key;
+      try {
+        if (!e || !e.subject || !e.subject.part) return;
+        
+        const part = e.subject.part;
+        if (!(part instanceof go.Node)) return;
+        
+        const nodeId = part.data ? part.data.key : null;
+        if (!nodeId) {
+          console.error("Node missing key/id in GoJS diagram");
+          return;
+        }
+        
         const node = getNodeById(nodeId);
-        if (node) {
-          console.log("GoJS node clicked:", node.title);
-          
-          // Set as active node
-          setActiveNode(nodeId);
-          
-          // Update the diagram to show the active node
+        if (!node) {
+          console.error("Could not find node with ID:", nodeId, "in tree data");
+          return;
+        }
+        
+        console.log("GoJS node clicked:", node.title, "ID:", nodeId);
+        
+        // Set as active node
+        setActiveNode(nodeId);
+        
+        // Update the diagram to show the active node
+        try {
           myDiagram.startTransaction("update active");
           myDiagram.model.nodeDataArray.forEach(nodeData => {
-            myDiagram.model.setDataProperty(nodeData, "isActive", nodeData.key === nodeId);
+            if (nodeData) {
+              myDiagram.model.setDataProperty(nodeData, "isActive", nodeData.key === nodeId);
+            }
           });
           myDiagram.commitTransaction("update active");
-          
-          // Call the click handler if available
-          if (typeof window.treeNodeClickCallback === 'function') {
+        } catch (diagramError) {
+          console.error("Error updating diagram:", diagramError);
+        }
+        
+        // Make sure we have the title property
+        if (!node.title) {
+          console.warn("Node missing title property:", node);
+          // Try to get title from diagram model
+          try {
+            const modelNode = myDiagram.model.findNodeDataForKey(nodeId);
+            if (modelNode && modelNode.title) {
+              node.title = modelNode.title;
+            }
+          } catch (modelError) {
+            console.error("Error accessing model data:", modelError);
+          }
+        }
+        
+        // Call the click handler if available
+        if (typeof window.treeNodeClickCallback === 'function') {
+          try {
             // Add a small delay to ensure the UI updates before loading content
             setTimeout(() => {
               window.treeNodeClickCallback(node, nodeId);
             }, 10);
-          } else {
-            console.error("Tree node click callback not found");
+          } catch (callbackError) {
+            console.error("Error calling tree node click callback:", callbackError);
           }
+        } else {
+          console.error("Tree node click callback not found");
         }
+      } catch (error) {
+        console.error("Error in GoJS click handler:", error);
       }
     });
     
