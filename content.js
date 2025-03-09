@@ -428,9 +428,17 @@ function createExpandedModal(data, nodeId = null) {
   const title = document.createElement('h2');
   title.textContent = data.title || 'Article';
   
+  // Add the title to the header (without close button)
+  header.appendChild(title);
+  
+  // Keep the close button but add it to the overlay instead of the header
   const closeButton = document.createElement('button');
   closeButton.textContent = '×';
   closeButton.className = 'rabbithole-modal-close-btn';
+  closeButton.style.position = 'absolute';
+  closeButton.style.top = '10px'; 
+  closeButton.style.right = '10px';
+  closeButton.style.zIndex = '10001';
   closeButton.onclick = () => {
     // Clear the tree data only when EXITING the entire session
     if (treeModule && treeModule.clearTree) {
@@ -441,9 +449,6 @@ function createExpandedModal(data, nodeId = null) {
     document.body.removeChild(overlay);
     document.body.style.overflow = 'auto';
   };
-  
-  header.appendChild(title);
-  header.appendChild(closeButton);
   
   // Create the body
   const body = document.createElement('div');
@@ -480,6 +485,9 @@ function createExpandedModal(data, nodeId = null) {
   // Add modal and tree container to content wrapper
   contentWrapper.appendChild(modal);
   contentWrapper.appendChild(treeContainer);
+  
+  // Add close button to overlay
+  overlay.appendChild(closeButton);
   
   // Add content wrapper to overlay
   overlay.appendChild(contentWrapper);
