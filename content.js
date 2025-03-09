@@ -230,18 +230,24 @@ function createPopup(data, position, isTreeNode = false, nodeId = null, sourceEl
     setTimeout(() => {
       // Only proceed if the popup is still not being hovered
       if (this.dataset.isHovered !== 'true') {
-        // Add fadeout class
-        this.classList.add('rabbithole-popup-fadeout');
+        // Check if we're inside a modal
+        const isInModal = !!document.querySelector('.rabbithole-modal');
         
-        // Schedule removal
-        setTimeout(() => {
-          // Final check to make sure it's still not hovered
-          if (this.dataset.isHovered !== 'true' && document.body.contains(this)) {
-            this.remove();
-          }
-        }, 200); // Match animation duration
+        // Only add fadeout if we're not in a modal or if we're in a modal but not hovering the popup
+        if (!isInModal || (isInModal && !this.matches(':hover'))) {
+          // Add fadeout class
+          this.classList.add('rabbithole-popup-fadeout');
+          
+          // Schedule removal
+          setTimeout(() => {
+            // Final check to make sure it's still not hovered
+            if (this.dataset.isHovered !== 'true' && !this.matches(':hover') && document.body.contains(this)) {
+              this.remove();
+            }
+          }, 200); // Match the animation duration
+        }
       }
-    }, 100); // Small delay before starting fadeout
+    }, 300); // Increase the delay to give more time to move to the popup
   });
   
   // Make the title clickable to expand
@@ -331,29 +337,39 @@ function createPopup(data, position, isTreeNode = false, nodeId = null, sourceEl
 function removePopups() {
   // Get all popups
   const popups = document.querySelectorAll('.rabbithole-popup');
+  const isInModal = !!document.querySelector('.rabbithole-modal');
   
   popups.forEach(popup => {
     // Only remove the popup if it's not being hovered
-    if (popup.dataset.isHovered !== 'true') {
-      // Check if the source element is being hovered
-      let sourceId = popup.dataset.sourceElementId;
-      let sourceElement = sourceId ? document.querySelector(`[data-popup-id="${sourceId}"]`) : null;
-      
-      if (sourceElement && sourceElement.matches(':hover')) {
-        // Source element is hovered, don't remove popup
-        return;
-      }
-      
-      // Add the fadeout animation class
-      popup.classList.add('rabbithole-popup-fadeout');
-      
-      // Remove the popup after animation completes
-      setTimeout(() => {
-        if (document.body.contains(popup)) {
-          popup.remove();
-        }
-      }, 200); // Match the animation duration
+    if (popup.dataset.isHovered === 'true' || popup.matches(':hover')) {
+      return; // Don't remove if popup is being hovered
     }
+    
+    // Check if the source element is being hovered
+    let sourceId = popup.dataset.sourceElementId;
+    let sourceElement = sourceId ? document.querySelector(`[data-popup-id="${sourceId}"]`) : null;
+    
+    if (sourceElement && sourceElement.matches(':hover')) {
+      // Source element is hovered, don't remove popup
+      return;
+    }
+    
+    // If we're in a modal, check once more if the popup is hovered
+    if (isInModal && popup.matches(':hover')) {
+      return;
+    }
+    
+    // Add the fadeout animation class
+    popup.classList.add('rabbithole-popup-fadeout');
+    
+    // Remove the popup after animation completes
+    setTimeout(() => {
+      // One final check before removing
+      if (document.body.contains(popup) && 
+          !(isInModal && popup.matches(':hover'))) {
+        popup.remove();
+      }
+    }, 200); // Match the animation duration
   });
 }
 
@@ -403,6 +419,16 @@ function createExpandedModal(data, nodeId = null) {
   const overlay = document.createElement('div');
   overlay.className = 'rabbithole-container';
   
+  // Add internal-nav class if we're continuing a session (not a new session)
+  if (!isNewSession) {
+    overlay.classList.add('internal-nav');
+    overlay.style.animation = "none";
+    overlay.style.transition = "none";
+    
+    // Also add the global style to prevent all animations
+    preventAllAnimations();
+  }
+  
   // Create the content wrapper for side-by-side layout
   const contentWrapper = document.createElement('div');
   contentWrapper.className = 'rabbithole-content-wrapper';
@@ -418,9 +444,17 @@ function createExpandedModal(data, nodeId = null) {
   const title = document.createElement('h2');
   title.textContent = data.title || 'Article';
   
+  // Add the title to the header (without close button)
+  header.appendChild(title);
+  
+  // Keep the close button but add it to the overlay instead of the header
   const closeButton = document.createElement('button');
   closeButton.textContent = '×';
   closeButton.className = 'rabbithole-modal-close-btn';
+  closeButton.style.position = 'absolute';
+  closeButton.style.top = '10px'; 
+  closeButton.style.right = '10px';
+  closeButton.style.zIndex = '10001';
   closeButton.onclick = () => {
     // Clear the tree data only when EXITING the entire session
     if (treeModule && treeModule.clearTree) {
@@ -431,9 +465,6 @@ function createExpandedModal(data, nodeId = null) {
     document.body.removeChild(overlay);
     document.body.style.overflow = 'auto';
   };
-  
-  header.appendChild(title);
-  header.appendChild(closeButton);
   
   // Create the body
   const body = document.createElement('div');
@@ -471,6 +502,9 @@ function createExpandedModal(data, nodeId = null) {
   contentWrapper.appendChild(modal);
   contentWrapper.appendChild(treeContainer);
   
+  // Add close button to overlay
+  overlay.appendChild(closeButton);
+  
   // Add content wrapper to overlay
   overlay.appendChild(contentWrapper);
   
@@ -483,6 +517,9 @@ function createExpandedModal(data, nodeId = null) {
   
   // Define the node click handler function - this PRESERVES the tree during navigation
   window.treeNodeClickCallback = async function(nodeInfo, clickedNodeId) {
+    // Prevent all animations - do this first!
+    preventAllAnimations();
+    
     console.log("Tree node clicked:", nodeInfo);
     
     // Basic validation - avoid errors with null/undefined
@@ -538,23 +575,21 @@ function createExpandedModal(data, nodeId = null) {
         thumbnail.alt = nodeData.title;
       }
       
-      // Update tree visualization to reflect the active node (safely)
-      if (treeModule && treeVisualization) {
-        if (treeModule.renderTree) {
-          treeModule.renderTree(treeVisualization);
-        } else if (treeModule.generateTreeHTML) {
-          treeVisualization.innerHTML = treeModule.generateTreeHTML();
-          
-          // Re-setup click handlers since HTML was replaced (safely)
-          if (overlay) {
-            setTimeout(() => {
-              try {
-                treeModule.setupTreeNodeHandlers(overlay, window.treeNodeClickCallback);
-              } catch (err) {
-                console.error("Error setting up tree node handlers:", err);
-              }
-            }, 100);
-          }
+      // Update tree visualization to reflect the active node
+      if (treeModule && treeModule.renderTree) {
+        treeModule.renderTree(treeVisualization);
+      } else if (treeModule && treeModule.generateTreeHTML) {
+        treeVisualization.innerHTML = treeModule.generateTreeHTML();
+        
+        // Re-setup click handlers since HTML was replaced
+        if (overlay) {
+          setTimeout(() => {
+            try {
+              treeModule.setupTreeNodeHandlers(overlay, window.treeNodeClickCallback);
+            } catch (err) {
+              console.error("Error setting up tree node handlers:", err);
+            }
+          }, 100);
         }
       }
     } catch (error) {
@@ -908,7 +943,22 @@ function processWikiLinks(element) {
                 clearTimeout(this.hoverTimeout);
                 this.hoverTimeout = null;
               }
-              removePopups();
+              
+              // Check if we're inside a modal
+              const isInModal = !!document.querySelector('.rabbithole-modal');
+              
+              // Only remove popups if we're not in a modal
+              if (!isInModal) {
+                removePopups();
+              } else {
+                // If we're in a modal, give time to move to the popup
+                setTimeout(() => {
+                  const popup = document.querySelector('.rabbithole-popup');
+                  if (popup && !popup.matches(':hover')) {
+                    removePopups();
+                  }
+                }, 200);
+              }
             });
             
             // Update the link click handler
@@ -1442,5 +1492,73 @@ function updateTreeVisualization(container) {
         }
       });
     }, 100);
+  }
+}
+
+/**
+ * Updates the navigation status to prevent animation
+ */
+function markAsInternalNavigation() {
+  console.log("Marking as internal navigation to prevent animation");
+  
+  // Look for the container
+  const container = document.querySelector('.rabbithole-container');
+  if (container) {
+    console.log("Found container, adding internal-nav class");
+    container.classList.add('internal-nav');
+    
+    // Force a style recalculation
+    void container.offsetWidth;
+    
+    // Also add the style directly for maximum compatibility
+    container.style.animation = "none";
+    container.style.transition = "none";
+  } else {
+    console.warn("Container not found when trying to mark as internal navigation");
+  }
+}
+
+/**
+ * Prevents all animations in the container and its children
+ */
+function preventAllAnimations() {
+  // Add a style tag to disable all animations
+  const styleTag = document.createElement('style');
+  styleTag.id = 'rabbithole-no-animations';
+  styleTag.textContent = `
+    .rabbithole-container,
+    .rabbithole-container * {
+      animation: none !important;
+      transition: none !important;
+    }
+  `;
+  document.head.appendChild(styleTag);
+  
+  // Apply styles directly to container elements
+  const container = document.querySelector('.rabbithole-container');
+  if (container) {
+    container.style.animation = "none";
+    container.style.transition = "none";
+    
+    // Apply to content wrapper
+    const wrapper = container.querySelector('.rabbithole-content-wrapper');
+    if (wrapper) {
+      wrapper.style.animation = "none";
+      wrapper.style.transition = "none";
+    }
+    
+    // Apply to modal
+    const modal = container.querySelector('.rabbithole-modal');
+    if (modal) {
+      modal.style.animation = "none";
+      modal.style.transition = "none";
+    }
+    
+    // Apply to tree container
+    const tree = container.querySelector('.rabbithole-tree-container');
+    if (tree) {
+      tree.style.animation = "none";
+      tree.style.transition = "none";
+    }
   }
 }

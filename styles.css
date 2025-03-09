@@ -106,6 +106,17 @@
   z-index: 10000;
 }
 
+/* No animation for internal navigation - highest specificity */
+.rabbithole-container.internal-nav,
+body .rabbithole-container.internal-nav,
+html body .rabbithole-container.internal-nav {
+  animation: none !important;
+  transition: none !important;
+  -webkit-animation: none !important;
+  -moz-animation: none !important;
+  -o-animation: none !important;
+}
+
 @keyframes container-appear {
   from { opacity: 0; }
   to { opacity: 1; }
