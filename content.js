@@ -449,8 +449,91 @@ function createExpandedModal(data, nodeId = null) {
   const title = document.createElement('h2');
   title.textContent = data.title || 'Article';
   
-  // Add the title to the header (without close button)
+  // Create source dropdown
+  const dropdown = document.createElement('div');
+  dropdown.className = 'popup-dropdown';
+  
+  // Determine current source
+  const currentSource = window.selectedSource || 'Wikipedia';
+  
+  // Create dropdown button
+  const dropdownButton = document.createElement('div');
+  dropdownButton.className = 'dropdown-button';
+  
+  // Create label
+  const dropdownLabel = document.createElement('span');
+  dropdownLabel.className = 'dropdown-label';
+  dropdownLabel.textContent = currentSource;
+  
+  // Create dropdown content
+  const dropdownContent = document.createElement('div');
+  dropdownContent.className = 'dropdown-content';
+  
+  // Create dropdown items
+  const wikipediaItem = document.createElement('div');
+  wikipediaItem.className = `dropdown-item${currentSource === 'Wikipedia' ? ' active' : ''}`;
+  wikipediaItem.dataset.source = 'Wikipedia';
+  wikipediaItem.textContent = 'Wikipedia';
+  
+  const dictionaryItem = document.createElement('div');
+  dictionaryItem.className = `dropdown-item${currentSource === 'Dictionary' ? ' active' : ''}`;
+  dictionaryItem.dataset.source = 'Dictionary';
+  dictionaryItem.textContent = 'Dictionary';
+  
+  // Assemble dropdown
+  dropdownButton.appendChild(dropdownLabel);
+  dropdownContent.appendChild(wikipediaItem);
+  dropdownContent.appendChild(dictionaryItem);
+  dropdown.appendChild(dropdownButton);
+  dropdown.appendChild(dropdownContent);
+  
+  // Add click event to dropdown button
+  dropdownButton.addEventListener('click', function(e) {
+    e.stopPropagation();
+    dropdownContent.classList.toggle('show');
+  });
+  
+  // Add click events to dropdown items
+  [wikipediaItem, dictionaryItem].forEach(item => {
+    item.addEventListener('click', async function(e) {
+      e.stopPropagation();
+      e.preventDefault();
+      
+      const newSource = this.dataset.source;
+      console.log("Changing source in modal to:", newSource);
+      
+      // Update UI
+      wikipediaItem.classList.toggle('active', newSource === 'Wikipedia');
+      dictionaryItem.classList.toggle('active', newSource === 'Dictionary');
+      
+      // Update dropdown button label
+      dropdownLabel.textContent = newSource;
+      
+      // Hide dropdown
+      dropdownContent.classList.remove('show');
+      
+      // Save the setting
+      window.selectedSource = newSource;
+      chrome.storage.sync.set({ 'selectedSource': newSource }, function() {
+        console.log("Source setting saved:", newSource);
+      });
+      
+      // Show loading state
+      contentDiv.innerHTML = '<p class="loading">Loading content...</p>';
+      
+      // Fetch new data for the current term
+      processArticleContent(data.title, contentDiv);
+    });
+  });
+  
+  // Close dropdown when clicking elsewhere
+  document.addEventListener('click', function() {
+    dropdownContent.classList.remove('show');
+  });
+  
+  // Add the title and dropdown to the header
   header.appendChild(title);
+  header.appendChild(dropdown);
   
   // Keep the close button but add it to the overlay instead of the header
   const closeButton = document.createElement('button');

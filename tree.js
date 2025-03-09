@@ -418,24 +418,39 @@ function setupTreeNodeHandlers(container, onNodeClick) {
                 
                 console.log("Fallback tree node clicked:", node.title);
                 
-                // Set as active node
-                setActiveNode(nodeId);
-                
-                // Update active node styling
-                try {
-                  document.querySelectorAll('.tree-node').forEach(el => {
-                    if (el) el.classList.remove('active-node');
-                  });
-                  this.classList.add('active-node');
-                } catch (styleError) {
-                  console.error("Error updating node styles:", styleError);
-                }
-                
-                // Call the click callback
-                if (typeof window.treeNodeClickCallback === 'function') {
-                  window.treeNodeClickCallback(node, nodeId);
+                // First show rabbit animation BEFORE updating node or loading content
+                if (window.rabbitAnimation && typeof window.rabbitAnimation.showRabbitAnimationAt === 'function') {
+                  try {
+                    console.log("Showing rabbit animation before content loads...");
+                    const position = window.rabbitAnimation.getElementPosition(this);
+                    
+                    // Show rabbit animation immediately
+                    console.log("Rabbit animation at:", position.x, position.y);
+                    window.rabbitAnimation.showRabbitAnimationAt(position.x, position.y);
+                    
+                    // Give the animation time to show the portal and pop out the rabbit
+                    setTimeout(() => {
+                      // THEN update the active node styling
+                      updateFallbackNodeStyling(this, nodeId);
+                      
+                      // THEN call the click handler to load Wikipedia content
+                      if (typeof window.treeNodeClickCallback === 'function') {
+                        window.treeNodeClickCallback(node, nodeId);
+                      } else {
+                        console.error("Tree node click callback not found");
+                      }
+                    }, 700); // Wait for portal to open and rabbit to pop out
+                  } catch (animError) {
+                    console.error("Error showing rabbit animation:", animError);
+                    // Fall back to normal flow if animation fails
+                    updateFallbackNodeStyling(this, nodeId);
+                    callFallbackClickHandler(node, nodeId);
+                  }
                 } else {
-                  console.error("Tree node click callback not found");
+                  // No animation module available, just do the normal flow
+                  console.log("Rabbit animation not available, proceeding with normal flow");
+                  updateFallbackNodeStyling(this, nodeId);
+                  callFallbackClickHandler(node, nodeId);
                 }
               } catch (clickError) {
                 console.error("Error in node click handler:", clickError);
@@ -451,6 +466,31 @@ function setupTreeNodeHandlers(container, onNodeClick) {
     }
   } catch (setupError) {
     console.error("Error in setupTreeNodeHandlers:", setupError);
+  }
+}
+
+// Helper function to update fallback node styling
+function updateFallbackNodeStyling(nodeElement, nodeId) {
+  // Set as active node
+  setActiveNode(nodeId);
+  
+  // Update active node styling
+  try {
+    document.querySelectorAll('.tree-node').forEach(el => {
+      if (el) el.classList.remove('active-node');
+    });
+    nodeElement.classList.add('active-node');
+  } catch (styleError) {
+    console.error("Error updating node styles:", styleError);
+  }
+}
+
+// Helper function to call the fallback node click handler
+function callFallbackClickHandler(node, nodeId) {
+  if (typeof window.treeNodeClickCallback === 'function') {
+    window.treeNodeClickCallback(node, nodeId);
+  } else {
+    console.error("Tree node click callback not found");
   }
 }
 
@@ -568,53 +608,97 @@ function initTreeDiagram(containerId) {
         
         console.log("GoJS node clicked:", node.title, "ID:", nodeId);
         
-        // Set as active node
-        setActiveNode(nodeId);
-        
-        // Update the diagram to show the active node
-        try {
-          myDiagram.startTransaction("update active");
-          myDiagram.model.nodeDataArray.forEach(nodeData => {
-            if (nodeData) {
-              myDiagram.model.setDataProperty(nodeData, "isActive", nodeData.key === nodeId);
-            }
-          });
-          myDiagram.commitTransaction("update active");
-        } catch (diagramError) {
-          console.error("Error updating diagram:", diagramError);
-        }
-        
-        // Make sure we have the title property
-        if (!node.title) {
-          console.warn("Node missing title property:", node);
-          // Try to get title from diagram model
+        // First show rabbit animation BEFORE updating the node or loading content
+        if (window.rabbitAnimation && typeof window.rabbitAnimation.showRabbitAnimationAt === 'function') {
           try {
-            const modelNode = myDiagram.model.findNodeDataForKey(nodeId);
-            if (modelNode && modelNode.title) {
-              node.title = modelNode.title;
-            }
-          } catch (modelError) {
-            console.error("Error accessing model data:", modelError);
-          }
-        }
-        
-        // Call the click handler if available
-        if (typeof window.treeNodeClickCallback === 'function') {
-          try {
-            // Add a small delay to ensure the UI updates before loading content
+            console.log("Showing rabbit animation before content loads...");
+            // Get the node's visual element
+            const position = window.rabbitAnimation.getElementPosition(part);
+            
+            // Show rabbit animation immediately
+            console.log("Rabbit animation at:", position.x, position.y);
+            window.rabbitAnimation.showRabbitAnimationAt(position.x, position.y);
+            
+            // Give the animation time to show the portal and pop out the rabbit
             setTimeout(() => {
-              window.treeNodeClickCallback(node, nodeId);
-            }, 10);
-          } catch (callbackError) {
-            console.error("Error calling tree node click callback:", callbackError);
+              // THEN set the active node and update the diagram
+              updateActiveNode(nodeId, part);
+              
+              // THEN call the click handler to load Wikipedia content
+              if (typeof window.treeNodeClickCallback === 'function') {
+                try {
+                  window.treeNodeClickCallback(node, nodeId);
+                } catch (callbackError) {
+                  console.error("Error calling tree node click callback:", callbackError);
+                }
+              } else {
+                console.error("Tree node click callback not found");
+              }
+            }, 700); // Wait for portal to open and rabbit to pop out
+            
+          } catch (animError) {
+            console.error("Error showing rabbit animation:", animError);
+            // Fall back to normal flow if animation fails
+            updateActiveNode(nodeId, part);
+            handleNodeCallback(node, nodeId);
           }
         } else {
-          console.error("Tree node click callback not found");
+          // No animation module available, just do the normal flow
+          console.log("Rabbit animation not available, proceeding with normal flow");
+          updateActiveNode(nodeId, part);
+          handleNodeCallback(node, nodeId);
         }
       } catch (error) {
         console.error("Error in GoJS click handler:", error);
       }
     });
+    
+    // Helper function to update active node state
+    function updateActiveNode(nodeId, part) {
+      // Set as active node
+      setActiveNode(nodeId);
+      
+      // Update the diagram to show the active node
+      try {
+        myDiagram.startTransaction("update active");
+        myDiagram.model.nodeDataArray.forEach(nodeData => {
+          if (nodeData) {
+            myDiagram.model.setDataProperty(nodeData, "isActive", nodeData.key === nodeId);
+          }
+        });
+        myDiagram.commitTransaction("update active");
+      } catch (diagramError) {
+        console.error("Error updating diagram:", diagramError);
+      }
+    }
+    
+    // Helper function to handle node click callback
+    function handleNodeCallback(node, nodeId) {
+      // Make sure we have the title property
+      if (!node.title) {
+        console.warn("Node missing title property:", node);
+        // Try to get title from diagram model
+        try {
+          const modelNode = myDiagram.model.findNodeDataForKey(nodeId);
+          if (modelNode && modelNode.title) {
+            node.title = modelNode.title;
+          }
+        } catch (modelError) {
+          console.error("Error accessing model data:", modelError);
+        }
+      }
+      
+      // Call the click handler if available
+      if (typeof window.treeNodeClickCallback === 'function') {
+        try {
+          window.treeNodeClickCallback(node, nodeId);
+        } catch (callbackError) {
+          console.error("Error calling tree node click callback:", callbackError);
+        }
+      } else {
+        console.error("Tree node click callback not found");
+      }
+    }
     
     // Hide the GoJS evaluation notice if present
     setTimeout(() => {

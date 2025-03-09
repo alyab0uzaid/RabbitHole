@@ -18,13 +18,13 @@
     "content_scripts": [
       {
         "matches": ["<all_urls>"],
-        "js": ["go.js", "tree.js", "content.js"],
+        "js": ["go.js", "tree.js", "rabbit-animation.js", "content.js"],
         "css": ["styles.css", "tree-styles.css"]
       }
     ],
     "web_accessible_resources": [
       {
-        "resources": ["go.js", "tree.js", "tree-styles.css"],
+        "resources": ["go.js", "tree.js", "rabbit-animation.js", "tree-styles.css"],
         "matches": ["<all_urls>"]
       }
     ]
