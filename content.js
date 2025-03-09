@@ -235,15 +235,15 @@ function createPopup(data, position, isTreeNode = false, nodeId = null, sourceEl
         
         // Only add fadeout if we're not in a modal or if we're in a modal but not hovering the popup
         if (!isInModal || (isInModal && !this.matches(':hover'))) {
-          // Add fadeout class
-          this.classList.add('rabbithole-popup-fadeout');
+    // Add fadeout class
+    this.classList.add('rabbithole-popup-fadeout');
           
-          // Schedule removal
-          setTimeout(() => {
+    // Schedule removal
+    setTimeout(() => {
             // Final check to make sure it's still not hovered
             if (this.dataset.isHovered !== 'true' && !this.matches(':hover') && document.body.contains(this)) {
-              this.remove();
-            }
+        this.remove();
+      }
           }, 200); // Match the animation duration
         }
       }
@@ -345,31 +345,31 @@ function removePopups() {
       return; // Don't remove if popup is being hovered
     }
     
-    // Check if the source element is being hovered
-    let sourceId = popup.dataset.sourceElementId;
-    let sourceElement = sourceId ? document.querySelector(`[data-popup-id="${sourceId}"]`) : null;
-    
-    if (sourceElement && sourceElement.matches(':hover')) {
-      // Source element is hovered, don't remove popup
-      return;
-    }
+      // Check if the source element is being hovered
+      let sourceId = popup.dataset.sourceElementId;
+      let sourceElement = sourceId ? document.querySelector(`[data-popup-id="${sourceId}"]`) : null;
+      
+      if (sourceElement && sourceElement.matches(':hover')) {
+        // Source element is hovered, don't remove popup
+        return;
+      }
     
     // If we're in a modal, check once more if the popup is hovered
     if (isInModal && popup.matches(':hover')) {
-      return;
-    }
-    
-    // Add the fadeout animation class
-    popup.classList.add('rabbithole-popup-fadeout');
-    
-    // Remove the popup after animation completes
-    setTimeout(() => {
+        return;
+      }
+      
+      // Add the fadeout animation class
+      popup.classList.add('rabbithole-popup-fadeout');
+      
+      // Remove the popup after animation completes
+      setTimeout(() => {
       // One final check before removing
       if (document.body.contains(popup) && 
           !(isInModal && popup.matches(':hover'))) {
-        popup.remove();
-      }
-    }, 200); // Match the animation duration
+          popup.remove();
+        }
+      }, 200); // Match the animation duration
   });
 }
 
@@ -579,7 +579,7 @@ function createExpandedModal(data, nodeId = null) {
       if (treeModule && treeModule.renderTree) {
         treeModule.renderTree(treeVisualization);
       } else if (treeModule && treeModule.generateTreeHTML) {
-        treeVisualization.innerHTML = treeModule.generateTreeHTML();
+          treeVisualization.innerHTML = treeModule.generateTreeHTML();
         
         // Re-setup click handlers since HTML was replaced
         if (overlay) {
@@ -606,7 +606,7 @@ function createExpandedModal(data, nodeId = null) {
     // Setup click handlers
     setTimeout(() => {
       treeModule.setupTreeNodeHandlers(overlay, window.treeNodeClickCallback);
-    }, 100);
+  }, 100);
   } else if (treeModule && treeModule.generateTreeHTML) {
     treeVisualization.innerHTML = treeModule.generateTreeHTML();
     
@@ -949,7 +949,7 @@ function processWikiLinks(element) {
               
               // Only remove popups if we're not in a modal
               if (!isInModal) {
-                removePopups();
+              removePopups();
               } else {
                 // If we're in a modal, give time to move to the popup
                 setTimeout(() => {
@@ -1355,31 +1355,31 @@ async function processArticleContent(title, container) {
   
   try {
     const html = await fetchFullArticle(title, container);
-    if (!html) return;
+  if (!html) return;
+  
+  // Create a temporary element to parse the HTML
+  const tempElement = document.createElement('div');
+  tempElement.innerHTML = html;
+  
+  if (window.selectedSource === 'Wikipedia') {
+    // Wikipedia-specific processing
     
-    // Create a temporary element to parse the HTML
-    const tempElement = document.createElement('div');
-    tempElement.innerHTML = html;
+    // Remove unwanted elements
+    const unwanted = tempElement.querySelectorAll('.mw-editsection, #coordinates, .error, .mw-empty-elt');
+    unwanted.forEach(el => el.remove());
     
-    if (window.selectedSource === 'Wikipedia') {
-      // Wikipedia-specific processing
-      
-      // Remove unwanted elements
-      const unwanted = tempElement.querySelectorAll('.mw-editsection, #coordinates, .error, .mw-empty-elt');
-      unwanted.forEach(el => el.remove());
-      
-      // Fix image URLs
-      const images = tempElement.querySelectorAll('img');
-      const processedImages = new Set(); // Track processed images to avoid duplicates
-      
-      images.forEach(img => {
-        if (img.src) {
+    // Fix image URLs
+    const images = tempElement.querySelectorAll('img');
+    const processedImages = new Set(); // Track processed images to avoid duplicates
+    
+    images.forEach(img => {
+      if (img.src) {
           // Fix the image URL if it's a relative path
           if (img.src.startsWith('/')) {
             img.src = 'https://en.wikipedia.org' + img.src;
           }
           
-          processedImages.add(img.src);
+        processedImages.add(img.src);
         }
       });
     }

@@ -13,24 +13,18 @@
   border-radius: var(--border-radius);
 }
 
-/* Tree status info */
+/* Hide tree status info completely */
 .tree-status-info {
-  font-size: 12px;
-  padding: 8px 12px;
-  color: #666;
-  text-align: right;
-  background-color: rgba(255, 255, 255, 0.9);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
-  border-radius: var(--border-radius) var(--border-radius) 0 0;
+  display: none !important;
 }
 
 /* Tree diagram */
 .tree-diagram {
   width: 100%;
-  height: calc(100% - 35px);
+  height: 100%; /* Use full height since status info is hidden */
   flex-grow: 1;
   background-color: rgba(255, 255, 255, 0.7);
-  border-radius: 0 0 var(--border-radius) var(--border-radius);
+  border-radius: var(--border-radius);
   padding: 10px 0;
 }
 
@@ -69,9 +63,18 @@
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
 }
 
-/* Hide GoJS evaluation notice */
-.rabbithole-tree-container canvas + div {
+/* Hide GoJS evaluation notice - more aggressive selectors */
+.rabbithole-tree-container canvas + div,
+div[style*="position: absolute"][style*="bottom: 5px"][style*="right: 5px"],
+div[style*="position:absolute"][style*="bottom:5px"][style*="right:5px"],
+.rabbithole-tree-container > div:not(.rabbithole-tree):last-child,
+canvas + div:contains("GoJS") {
   display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  height: 0 !important;
+  overflow: hidden !important;
+  pointer-events: none !important;
 }
 
 /* GoJS specific styles */
