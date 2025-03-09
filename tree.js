@@ -287,7 +287,7 @@ function setupTreeNodeHandlers(container, onNodeClick) {
                     console.log("Rabbit animation at:", position.x, position.y);
                     window.rabbitAnimation.showRabbitAnimationAt(position.x, position.y);
                     
-                    // Give the animation a little time to start
+                    // Give the animation time to show the portal and pop out the rabbit
                     setTimeout(() => {
                       // THEN update the active node styling
                       updateFallbackNodeStyling(this, nodeId);
@@ -298,7 +298,7 @@ function setupTreeNodeHandlers(container, onNodeClick) {
                       } else {
                         console.error("Tree node click callback not found");
                       }
-                    }, 600); // Adjusted timing to match new animation speed
+                    }, 700); // Wait for portal to open and rabbit to pop out
                   } catch (animError) {
                     console.error("Error showing rabbit animation:", animError);
                     // Fall back to normal flow if animation fails
@@ -478,7 +478,7 @@ function initTreeDiagram(containerId) {
             console.log("Rabbit animation at:", position.x, position.y);
             window.rabbitAnimation.showRabbitAnimationAt(position.x, position.y);
             
-            // Give the animation a little time to start
+            // Give the animation time to show the portal and pop out the rabbit
             setTimeout(() => {
               // THEN set the active node and update the diagram
               updateActiveNode(nodeId, part);
@@ -493,7 +493,7 @@ function initTreeDiagram(containerId) {
               } else {
                 console.error("Tree node click callback not found");
               }
-            }, 600); // Adjusted timing to match new animation speed
+            }, 700); // Wait for portal to open and rabbit to pop out
             
           } catch (animError) {
             console.error("Error showing rabbit animation:", animError);
