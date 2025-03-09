@@ -34,6 +34,11 @@ chrome.runtime.onMessage.addListener(function(message, sender, sendResponse) {
     isEnabled = message.enabled;
     console.log("RabbitHole extension " + (isEnabled ? "enabled" : "disabled"));
     sendResponse({status: "success"});
+  } else if (message.action === "loadSavedTree") {
+    // Handle loading a saved tree
+    console.log("Received request to load saved tree:", message.treeId);
+    loadSavedTree(message.treeId);
+    sendResponse({status: "success"});
   }
   return true; // Keep the message channel open for async response
 });
@@ -456,14 +461,82 @@ function createExpandedModal(data, nodeId = null) {
   closeButton.style.right = '10px';
   closeButton.style.zIndex = '10001';
   closeButton.onclick = () => {
-    // Clear the tree data only when EXITING the entire session
-    if (treeModule && treeModule.clearTree) {
-      treeModule.clearTree();
-      console.log("Tree data cleared on modal close");
+    // Check if tree has nodes before asking to save
+    if (treeModule && treeModule.wikiTree && treeModule.wikiTree.length > 0) {
+      // Get the root node title to use as default name
+      let defaultName = '';
+      if (treeModule.wikiTree.length > 0) {
+        const rootNode = treeModule.wikiTree.find(node => node.parentId === null) || treeModule.wikiTree[0];
+        defaultName = rootNode ? rootNode.title : '';
+      }
+      
+      // Show the save modal
+      createSaveTreeModal(
+        // onSave callback
+        async (treeName) => {
+          if (treeModule && treeModule.saveTree) {
+            const saved = await treeModule.saveTree(treeName);
+            if (saved) {
+              // Show a success notification
+              const notification = document.createElement('div');
+              notification.textContent = `RabbitHole saved as "${treeName}"`;
+              notification.style.position = 'fixed';
+              notification.style.bottom = '20px';
+              notification.style.left = '50%';
+              notification.style.transform = 'translateX(-50%)';
+              notification.style.backgroundColor = 'rgba(0, 102, 204, 0.9)';
+              notification.style.color = 'white';
+              notification.style.padding = '10px 20px';
+              notification.style.borderRadius = '4px';
+              notification.style.fontSize = '14px';
+              notification.style.zIndex = '10010';
+              document.body.appendChild(notification);
+              
+              // Remove notification after 3 seconds
+              setTimeout(() => {
+                notification.style.opacity = '0';
+                notification.style.transition = 'opacity 0.5s ease';
+                setTimeout(() => {
+                  if (notification.parentNode) {
+                    notification.parentNode.removeChild(notification);
+                  }
+                }, 500);
+              }, 3000);
+            }
+          }
+          
+          // Clear the tree data and close the modal
+          if (treeModule && treeModule.clearTree) {
+            treeModule.clearTree();
+            console.log("Tree data cleared on modal close");
+          }
+          
+          document.body.removeChild(overlay);
+          document.body.style.overflow = 'auto';
+        },
+        // onCancel callback
+        () => {
+          // Clear the tree data and close the modal without saving
+          if (treeModule && treeModule.clearTree) {
+            treeModule.clearTree();
+            console.log("Tree data cleared on modal close (save canceled)");
+          }
+          
+          document.body.removeChild(overlay);
+          document.body.style.overflow = 'auto';
+        },
+        defaultName
+      );
+    } else {
+      // No tree data to save, just close
+      if (treeModule && treeModule.clearTree) {
+        treeModule.clearTree();
+        console.log("Tree data cleared on modal close");
+      }
+      
+      document.body.removeChild(overlay);
+      document.body.style.overflow = 'auto';
     }
-    
-    document.body.removeChild(overlay);
-    document.body.style.overflow = 'auto';
   };
   
   // Create the body
@@ -1561,4 +1634,263 @@ function preventAllAnimations() {
       tree.style.transition = "none";
     }
   }
+}
+
+/**
+ * Creates a modal dialog to save the current tree
+ * @param {Function} onSave - Callback function when save is clicked
+ * @param {Function} onCancel - Callback function when cancel is clicked
+ * @param {string} defaultName - Default name for the tree
+ */
+function createSaveTreeModal(onSave, onCancel, defaultName = '') {
+  // Create modal container
+  const modalOverlay = document.createElement('div');
+  modalOverlay.className = 'rabbithole-save-modal-overlay';
+  modalOverlay.style.position = 'fixed';
+  modalOverlay.style.top = '0';
+  modalOverlay.style.left = '0';
+  modalOverlay.style.width = '100%';
+  modalOverlay.style.height = '100%';
+  modalOverlay.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+  modalOverlay.style.display = 'flex';
+  modalOverlay.style.justifyContent = 'center';
+  modalOverlay.style.alignItems = 'center';
+  modalOverlay.style.zIndex = '10010'; // Higher than other elements
+  
+  // Create modal dialog
+  const modal = document.createElement('div');
+  modal.className = 'rabbithole-save-modal';
+  modal.style.backgroundColor = 'white';
+  modal.style.borderRadius = '8px';
+  modal.style.padding = '20px';
+  modal.style.width = '400px';
+  modal.style.maxWidth = '90%';
+  modal.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)';
+  modal.style.display = 'flex';
+  modal.style.flexDirection = 'column';
+  modal.style.gap = '15px';
+  
+  // Add title
+  const title = document.createElement('h3');
+  title.textContent = 'Save Your RabbitHole';
+  title.style.margin = '0 0 5px 0';
+  title.style.color = '#333';
+  title.style.fontSize = '18px';
+  
+  // Add description
+  const description = document.createElement('p');
+  description.textContent = 'You can save your current browsing session to continue exploring later.';
+  description.style.margin = '0 0 10px 0';
+  description.style.fontSize = '14px';
+  description.style.color = '#666';
+  
+  // Add input field for name
+  const inputContainer = document.createElement('div');
+  inputContainer.style.display = 'flex';
+  inputContainer.style.flexDirection = 'column';
+  inputContainer.style.gap = '5px';
+  
+  const inputLabel = document.createElement('label');
+  inputLabel.textContent = 'Name your RabbitHole:';
+  inputLabel.style.fontSize = '14px';
+  inputLabel.style.color = '#444';
+  inputLabel.setAttribute('for', 'rabbithole-save-name');
+  
+  const input = document.createElement('input');
+  input.id = 'rabbithole-save-name';
+  input.type = 'text';
+  input.placeholder = defaultName || 'My RabbitHole';
+  input.value = defaultName || '';
+  input.style.padding = '8px 12px';
+  input.style.border = '1px solid #ddd';
+  input.style.borderRadius = '4px';
+  input.style.fontSize = '14px';
+  
+  inputContainer.appendChild(inputLabel);
+  inputContainer.appendChild(input);
+  
+  // Add buttons
+  const buttonsContainer = document.createElement('div');
+  buttonsContainer.style.display = 'flex';
+  buttonsContainer.style.justifyContent = 'flex-end';
+  buttonsContainer.style.gap = '10px';
+  buttonsContainer.style.marginTop = '10px';
+  
+  const cancelButton = document.createElement('button');
+  cancelButton.textContent = 'Cancel';
+  cancelButton.style.padding = '8px 16px';
+  cancelButton.style.border = '1px solid #ddd';
+  cancelButton.style.borderRadius = '4px';
+  cancelButton.style.backgroundColor = 'white';
+  cancelButton.style.cursor = 'pointer';
+  cancelButton.style.fontSize = '14px';
+  
+  const saveButton = document.createElement('button');
+  saveButton.textContent = 'Save RabbitHole';
+  saveButton.style.padding = '8px 16px';
+  saveButton.style.border = 'none';
+  saveButton.style.borderRadius = '4px';
+  saveButton.style.backgroundColor = '#0066cc';
+  saveButton.style.color = 'white';
+  saveButton.style.cursor = 'pointer';
+  saveButton.style.fontSize = '14px';
+  
+  // Add focus and hover effects
+  saveButton.addEventListener('mouseover', () => {
+    saveButton.style.backgroundColor = '#0052a3';
+  });
+  saveButton.addEventListener('mouseout', () => {
+    saveButton.style.backgroundColor = '#0066cc';
+  });
+  
+  cancelButton.addEventListener('mouseover', () => {
+    cancelButton.style.backgroundColor = '#f5f5f5';
+  });
+  cancelButton.addEventListener('mouseout', () => {
+    cancelButton.style.backgroundColor = 'white';
+  });
+  
+  // Add button event listeners
+  cancelButton.addEventListener('click', () => {
+    document.body.removeChild(modalOverlay);
+    if (onCancel) onCancel();
+  });
+  
+  saveButton.addEventListener('click', () => {
+    const treeName = input.value.trim() || input.placeholder;
+    document.body.removeChild(modalOverlay);
+    if (onSave) onSave(treeName);
+  });
+  
+  // Add keydown event for Enter to save
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      const treeName = input.value.trim() || input.placeholder;
+      document.body.removeChild(modalOverlay);
+      if (onSave) onSave(treeName);
+    }
+  });
+  
+  // Add the elements to the modal
+  buttonsContainer.appendChild(cancelButton);
+  buttonsContainer.appendChild(saveButton);
+  
+  modal.appendChild(title);
+  modal.appendChild(description);
+  modal.appendChild(inputContainer);
+  modal.appendChild(buttonsContainer);
+  
+  modalOverlay.appendChild(modal);
+  
+  // Add the modal to the page
+  document.body.appendChild(modalOverlay);
+  
+  // Focus the input field
+  setTimeout(() => {
+    input.focus();
+  }, 100);
+}
+
+/**
+ * Loads a saved tree and shows it in the UI
+ * @param {string} treeId - ID of the tree to load
+ */
+async function loadSavedTree(treeId) {
+  if (!treeModule) {
+    console.error("Tree module not loaded yet, cannot load saved tree");
+    return;
+  }
+  
+  console.log("Loading saved tree:", treeId);
+  
+  try {
+    // Load the tree data
+    const success = await treeModule.loadTree(treeId);
+    
+    if (!success) {
+      console.error("Failed to load tree:", treeId);
+      // Show error notification
+      showNotification("Error loading saved RabbitHole. Try again later.", "error");
+      return;
+    }
+    
+    // Get the root node to display
+    const rootNode = treeModule.wikiTree.find(node => node.parentId === null) || treeModule.wikiTree[0];
+    if (!rootNode) {
+      console.error("No root node found in loaded tree");
+      showNotification("Error: Could not find the starting point of your RabbitHole.", "error");
+      return;
+    }
+    
+    // Show a notification
+    showNotification(`Loaded RabbitHole: ${rootNode.title}`, "success");
+    
+    // Fetch data for the root node and create the modal
+    const data = await fetchWikipediaData(rootNode.title);
+    if (data) {
+      // Create expanded modal with the root node
+      createExpandedModal(data, rootNode.id);
+      
+      // Mark as loaded from saved tree
+      const container = document.querySelector('.rabbithole-container');
+      if (container) {
+        container.classList.add('loaded-from-saved');
+      }
+    } else {
+      console.error("Could not fetch data for root node:", rootNode.title);
+      showNotification("Error loading content. Try again later.", "error");
+    }
+  } catch (error) {
+    console.error("Error loading saved tree:", error);
+    showNotification("Error loading saved RabbitHole: " + error.message, "error");
+  }
+}
+
+/**
+ * Shows a notification to the user
+ * @param {string} message - Message to display
+ * @param {string} type - Type of notification (success, error, info)
+ */
+function showNotification(message, type = "info") {
+  // Create notification element
+  const notification = document.createElement('div');
+  notification.className = `rabbithole-notification rabbithole-notification-${type}`;
+  notification.textContent = message;
+  
+  // Style the notification
+  notification.style.position = 'fixed';
+  notification.style.bottom = '20px';
+  notification.style.left = '50%';
+  notification.style.transform = 'translateX(-50%)';
+  notification.style.padding = '10px 20px';
+  notification.style.borderRadius = '4px';
+  notification.style.fontSize = '14px';
+  notification.style.zIndex = '10020';
+  notification.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.2)';
+  
+  // Set color based on type
+  if (type === "success") {
+    notification.style.backgroundColor = 'rgba(0, 128, 0, 0.9)';
+    notification.style.color = 'white';
+  } else if (type === "error") {
+    notification.style.backgroundColor = 'rgba(220, 53, 69, 0.9)';
+    notification.style.color = 'white';
+  } else {
+    notification.style.backgroundColor = 'rgba(0, 102, 204, 0.9)';
+    notification.style.color = 'white';
+  }
+  
+  // Add to the page
+  document.body.appendChild(notification);
+  
+  // Remove after a delay
+  setTimeout(() => {
+    notification.style.opacity = '0';
+    notification.style.transition = 'opacity 0.5s ease';
+    setTimeout(() => {
+      if (notification.parentNode) {
+        notification.parentNode.removeChild(notification);
+      }
+    }, 500);
+  }, 3000);
 }

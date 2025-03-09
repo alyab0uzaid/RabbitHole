@@ -1,4 +1,6 @@
 <!DOCTYPE html>
+<script src="lib/go-debug.js"></script>
+<script src="gojs-tree.js"></script> 
 <html>
 <head>
   <meta charset="UTF-8">
@@ -19,6 +21,14 @@
         <span class="toggle-slider"></span>
       </label>
       <span class="toggle-label">Extension is <span id="toggleStatus">enabled</span></span>
+    </div>
+    
+    <!-- Saved Trees Section -->
+    <div class="saved-trees-section">
+      <h3 class="section-title">Saved RabbitHoles</h3>
+      <div id="savedTreesList" class="saved-trees-list">
+        <div class="loading-trees">Loading your saved RabbitHoles...</div>
+      </div>
     </div>
     
     <div class="features">
