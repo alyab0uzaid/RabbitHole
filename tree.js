@@ -118,12 +118,27 @@ function getTreeData() {
 function generateTreeHTML() {
   console.log("Generating tree HTML with GoJS");
   
-  // Create a container for the tree diagram
+  const nodeCount = wikiTree.length;
+  // Create a unique ID for the tree diagram container
+  const uniqueId = 'tree-diagram-' + Date.now();
+  
+  // Create a container for the tree diagram with debug info
   const html = `
     <div style="width: 100%; height: 300px; border: 1px solid #ddd; background: white;">
-      <div id="tree-diagram" style="width: 100%; height: 100%;"></div>
+      <div style="font-size: 12px; padding: 5px; color: #666; text-align: right;">
+        Tree nodes: ${nodeCount} | Active: ${activeNodeId || 'None'}
+      </div>
+      <div id="${uniqueId}" style="width: 100%; height: 90%;"></div>
     </div>
   `;
+  
+  console.log(`Tree HTML generated with ${nodeCount} nodes and active node ${activeNodeId || 'None'}`);
+  
+  // We need to call initTreeDiagram with the unique ID after the HTML is inserted into the DOM
+  // Use setTimeout to ensure this happens after the HTML is in the DOM
+  setTimeout(() => {
+    initTreeDiagram(uniqueId);
+  }, 200);
   
   return html;
 }
@@ -141,7 +156,28 @@ function setupTreeNodeHandlers(container, onNodeClick) {
   
   // Initialize the tree diagram right away
   setTimeout(() => {
-    initTreeDiagram('tree-diagram');
+    // Find the tree diagram element - handle both cases where we might have
+    // multiple tree-diagram elements in the DOM due to rebuilding
+    const treeElements = document.querySelectorAll('#tree-diagram');
+    
+    if (treeElements.length > 0) {
+      console.log(`Found ${treeElements.length} tree diagram elements`);
+      
+      // Use the most recently added element if there are multiple
+      const treeElement = treeElements[treeElements.length - 1];
+      const elementId = 'tree-diagram-' + Date.now();
+      
+      // Assign a unique ID if there are multiple elements
+      if (treeElements.length > 1) {
+        treeElement.id = elementId;
+        console.log(`Assigned unique ID ${elementId} to tree element`);
+        initTreeDiagram(elementId);
+      } else {
+        initTreeDiagram('tree-diagram');
+      }
+    } else {
+      console.warn("No tree diagram element found to initialize");
+    }
   }, 100);
 }
 
@@ -246,6 +282,7 @@ function initTreeDiagram(containerId) {
     myDiagram.addDiagramListener("ObjectSingleClicked", function(e) {
       const part = e.subject.part;
       if (part instanceof go.Node) {
+        
         const nodeId = part.data.key;
         console.log("Node clicked:", nodeId);
         
