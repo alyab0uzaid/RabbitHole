@@ -230,18 +230,24 @@ function createPopup(data, position, isTreeNode = false, nodeId = null, sourceEl
     setTimeout(() => {
       // Only proceed if the popup is still not being hovered
       if (this.dataset.isHovered !== 'true') {
-        // Add fadeout class
-        this.classList.add('rabbithole-popup-fadeout');
+        // Check if we're inside a modal
+        const isInModal = !!document.querySelector('.rabbithole-modal');
         
-        // Schedule removal
-        setTimeout(() => {
-          // Final check to make sure it's still not hovered
-          if (this.dataset.isHovered !== 'true' && document.body.contains(this)) {
-            this.remove();
-          }
-        }, 200); // Match animation duration
+        // Only add fadeout if we're not in a modal or if we're in a modal but not hovering the popup
+        if (!isInModal || (isInModal && !this.matches(':hover'))) {
+          // Add fadeout class
+          this.classList.add('rabbithole-popup-fadeout');
+          
+          // Schedule removal
+          setTimeout(() => {
+            // Final check to make sure it's still not hovered
+            if (this.dataset.isHovered !== 'true' && !this.matches(':hover') && document.body.contains(this)) {
+              this.remove();
+            }
+          }, 200); // Match the animation duration
+        }
       }
-    }, 100); // Small delay before starting fadeout
+    }, 300); // Increase the delay to give more time to move to the popup
   });
   
   // Make the title clickable to expand
@@ -331,29 +337,39 @@ function createPopup(data, position, isTreeNode = false, nodeId = null, sourceEl
 function removePopups() {
   // Get all popups
   const popups = document.querySelectorAll('.rabbithole-popup');
+  const isInModal = !!document.querySelector('.rabbithole-modal');
   
   popups.forEach(popup => {
     // Only remove the popup if it's not being hovered
-    if (popup.dataset.isHovered !== 'true') {
-      // Check if the source element is being hovered
-      let sourceId = popup.dataset.sourceElementId;
-      let sourceElement = sourceId ? document.querySelector(`[data-popup-id="${sourceId}"]`) : null;
-      
-      if (sourceElement && sourceElement.matches(':hover')) {
-        // Source element is hovered, don't remove popup
-        return;
-      }
-      
-      // Add the fadeout animation class
-      popup.classList.add('rabbithole-popup-fadeout');
-      
-      // Remove the popup after animation completes
-      setTimeout(() => {
-        if (document.body.contains(popup)) {
-          popup.remove();
-        }
-      }, 200); // Match the animation duration
+    if (popup.dataset.isHovered === 'true' || popup.matches(':hover')) {
+      return; // Don't remove if popup is being hovered
     }
+    
+    // Check if the source element is being hovered
+    let sourceId = popup.dataset.sourceElementId;
+    let sourceElement = sourceId ? document.querySelector(`[data-popup-id="${sourceId}"]`) : null;
+    
+    if (sourceElement && sourceElement.matches(':hover')) {
+      // Source element is hovered, don't remove popup
+      return;
+    }
+    
+    // If we're in a modal, check once more if the popup is hovered
+    if (isInModal && popup.matches(':hover')) {
+      return;
+    }
+    
+    // Add the fadeout animation class
+    popup.classList.add('rabbithole-popup-fadeout');
+    
+    // Remove the popup after animation completes
+    setTimeout(() => {
+      // One final check before removing
+      if (document.body.contains(popup) && 
+          !(isInModal && popup.matches(':hover'))) {
+        popup.remove();
+      }
+    }, 200); // Match the animation duration
   });
 }
 
@@ -927,7 +943,22 @@ function processWikiLinks(element) {
                 clearTimeout(this.hoverTimeout);
                 this.hoverTimeout = null;
               }
-              removePopups();
+              
+              // Check if we're inside a modal
+              const isInModal = !!document.querySelector('.rabbithole-modal');
+              
+              // Only remove popups if we're not in a modal
+              if (!isInModal) {
+                removePopups();
+              } else {
+                // If we're in a modal, give time to move to the popup
+                setTimeout(() => {
+                  const popup = document.querySelector('.rabbithole-popup');
+                  if (popup && !popup.matches(':hover')) {
+                    removePopups();
+                  }
+                }, 200);
+              }
             });
             
             // Update the link click handler
