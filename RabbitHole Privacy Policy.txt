@@ -1,0 +1,39 @@
+Effective Date: 03/09/2025
+1. Introduction
+This Privacy Policy explains how the RabbitHole Chrome extension ("Extension", "we", "our", or "us") collects, uses, and protects information when you use our browser extension. We are committed to ensuring that your privacy is protected.
+2. Information We Collect
+The RabbitHole extension collects and processes the following limited data:
+Text Selections: When you highlight text on a webpage, we process that text to provide information from Wikipedia or Dictionary sources.
+User Interaction Data: We track your interactions with the extension's interface (such as clicks on highlighted text and navigation through the knowledge tree) to provide the core functionality.
+Preferences: We store your preferences (such as whether the extension is enabled and your preferred information source - Wikipedia or Dictionary).
+Knowledge Tree Data: We maintain a record of topics you've explored to create the visual knowledge tree.
+3. How We Use Your Information
+We use the collected information solely for the following purposes:
+To provide the core functionality of the extension (displaying information about selected text)
+To maintain your knowledge exploration tree
+To remember your preferences
+To improve the extension's functionality
+4. Data Storage
+All data collected by RabbitHole is stored locally in your browser using Chrome's local storage API. This means:
+Your data remains on your device
+Your data is not transmitted to our servers
+Your data is automatically deleted if you uninstall the extension
+5. Third-Party Services
+The extension makes requests to the following third-party services to provide information:
+Wikipedia API (en.wikipedia.org)
+Dictionary API (api.dictionaryapi.dev)
+These requests only include the text you've selected and no personally identifiable information. We do not share any data with these services beyond what is necessary to provide the requested information.
+6. Data Sharing
+We do not:
+Sell or rent your data to third parties
+Share your data with third parties for marketing purposes
+Use your data for purposes unrelated to the extension's core functionality
+7. Your Rights
+You have the right to:
+Disable the extension at any time
+Uninstall the extension, which will remove all stored data
+Contact us with questions about your data
+8. Changes to This Privacy Policy
+We may update this Privacy Policy from time to time. We will notify you of any changes by posting the new Privacy Policy on this page and updating the effective date.
+9. Contact Us
+If you have any questions about this Privacy Policy or the extension, please contact us at: Samuel Ledesma (smejial@siue.edu) Aly Abouzaid (aabouza@siue.edu) Audrey Harris (audharr@siue.edu)
