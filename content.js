@@ -335,7 +335,7 @@ function createExpandedModal(data, nodeId = null) {
   
   // Only remove modals if it's not internal navigation from within a modal
   if (!isInternalNavigation) {
-    removeModals();
+    removeModals(false);
   } else {
     // Remove just the content, not the whole modal
     const existingModalContent = document.querySelector('.rabbithole-modal');
@@ -457,7 +457,7 @@ function createExpandedModal(data, nodeId = null) {
   
   // Add the close button event listener for the modal
   modal.querySelector('.rabbithole-modal-close-btn').addEventListener('click', function() {
-    // Clear the tree data before removing the modal
+    // Clear the tree data when explicitly closing the modal
     if (treeModule) {
       treeModule.clearTree();
       console.log("Tree cleared on modal close");
@@ -469,9 +469,15 @@ function createExpandedModal(data, nodeId = null) {
   setTimeout(() => {
     console.log("Setting up tree node click handlers");
     
-    // Use the tree module's handler setup
-    treeModule.setupTreeNodeHandlers(container, async (nodeInfo, nodeId) => {
+    // Store the callback function globally so it can be reused
+    window.treeNodeClickHandler = async (nodeInfo, nodeId) => {
       console.log("Tree node clicked:", nodeInfo.title);
+      
+      // Set this node as the active one
+      treeModule.setActiveNode(nodeId);
+      
+      // Immediately update tree visualization to show active node change
+      updateTreeVisualization(container);
       
       // Load the content for this node, but don't recreate the modal
       const data = await fetchWikipediaData(nodeInfo.title);
@@ -496,24 +502,27 @@ function createExpandedModal(data, nodeId = null) {
           thumbnailContainer.src = data.thumbnail;
         }
         
-        // Update the tree visualization to reflect the active node change
-        const treeVisualization = container.querySelector('.rabbithole-tree');
-        if (treeVisualization) {
-          treeVisualization.innerHTML = treeModule.generateTreeHTML();
-        }
+        // Update tree visualization again after content is loaded
+        // Sometimes the tree can be hidden during content update
+        updateTreeVisualization(container);
       }
-    });
+    };
+    
+    // Use the tree module's handler setup with our global handler
+    treeModule.setupTreeNodeHandlers(container, window.treeNodeClickHandler);
   }, 100);
   
   return container;
 }
 
 // Function to remove all modals
-function removeModals() {
-  // Clear the tree data
-  if (treeModule) {
+function removeModals(clearTreeData = true) {
+  // Clear the tree data only if explicitly requested
+  if (clearTreeData && treeModule) {
     treeModule.clearTree();
     console.log("Tree cleared in removeModals");
+  } else {
+    console.log("Preserving tree data during modal removal");
   }
   
   const containers = document.querySelectorAll('.rabbithole-container');
@@ -1340,4 +1349,87 @@ async function processArticleContent(title, container) {
     console.log("Reloading content with new source:", window.selectedSource);
     await processArticleContent(title, container.querySelector('.rabbithole-article-content'));
   });
+}
+
+// Add new function after createExpandedModal
+/**
+ * Updates only the tree visualization without affecting the modal content
+ * @param {Element} container - The container element
+ */
+function updateTreeVisualization(container) {
+  console.log("Direct tree visualization update");
+  
+  // Make sure the tree container exists
+  let treeContainer = container.querySelector('.rabbithole-tree-container');
+  if (!treeContainer) {
+    console.warn("Tree container not found during direct update");
+    
+    // Create new tree container if it doesn't exist
+    console.log("Creating new tree container");
+    treeContainer = document.createElement('div');
+    treeContainer.className = 'rabbithole-tree-container';
+    
+    // Add explicit styling to ensure visibility
+    treeContainer.style.width = '250px';
+    treeContainer.style.padding = '15px';
+    treeContainer.style.backgroundColor = 'white';
+    treeContainer.style.borderRadius = '8px';
+    treeContainer.style.boxShadow = '0 2px 10px rgba(0, 0, 0, 0.1)';
+    treeContainer.style.margin = '10px';
+    treeContainer.style.display = 'block';
+    treeContainer.style.maxHeight = '80vh';
+    treeContainer.style.overflowY = 'auto';
+    treeContainer.style.zIndex = '10002'; // Higher than the main container
+    
+    // Add tree title
+    const treeTitle = document.createElement('h3');
+    treeTitle.textContent = 'Your Rabbit Hole Journey';
+    treeTitle.style.marginBottom = '10px';
+    treeContainer.appendChild(treeTitle);
+    
+    // Find the appropriate location in the container structure
+    // Insert before the modal if it exists
+    const modal = container.querySelector('.rabbithole-modal');
+    if (modal) {
+      container.insertBefore(treeContainer, modal);
+    } else {
+      container.appendChild(treeContainer);
+    }
+  } else {
+    console.log("Tree container found, ensuring visibility");
+    // Ensure visibility of existing container
+    treeContainer.style.display = 'block';
+    treeContainer.style.zIndex = '10002'; // Higher than the main container
+  }
+  
+  // Get or create the tree visualization
+  let treeVisualization = treeContainer.querySelector('.rabbithole-tree');
+  if (!treeVisualization) {
+    console.warn("Tree visualization not found during direct update");
+    
+    // Create the tree visualization if it doesn't exist
+    treeVisualization = document.createElement('div');
+    treeVisualization.className = 'rabbithole-tree';
+    treeContainer.appendChild(treeVisualization);
+  }
+  
+  // Update the tree HTML
+  console.log("Updating tree visualization with HTML");
+  const treeHTML = treeModule.generateTreeHTML();
+  console.log("Tree HTML length:", treeHTML.length);
+  treeVisualization.innerHTML = treeHTML;
+  
+  // Force a repaint of the tree container
+  treeContainer.style.opacity = '0.99';
+  setTimeout(() => {
+    treeContainer.style.opacity = '1';
+    
+    // Ensure tree diagram is initialized with proper handlers
+    setTimeout(() => {
+      console.log("Re-initializing tree diagram after update");
+      treeModule.setupTreeNodeHandlers(container, window.treeNodeClickHandler);
+    }, 100);
+  }, 0);
+  
+  console.log("Tree visualization directly updated");
 }
