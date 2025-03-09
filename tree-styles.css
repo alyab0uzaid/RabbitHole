@@ -10,23 +10,28 @@
   border: none;
   display: flex;
   flex-direction: column;
+  border-radius: var(--border-radius);
 }
 
 /* Tree status info */
 .tree-status-info {
   font-size: 12px;
-  padding: 5px;
+  padding: 8px 12px;
   color: #666;
   text-align: right;
-  background-color: rgba(255, 255, 255, 0.7);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  background-color: rgba(255, 255, 255, 0.9);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  border-radius: var(--border-radius) var(--border-radius) 0 0;
 }
 
 /* Tree diagram */
 .tree-diagram {
   width: 100%;
-  height: calc(100% - 25px);
+  height: calc(100% - 35px);
   flex-grow: 1;
+  background-color: rgba(255, 255, 255, 0.7);
+  border-radius: 0 0 var(--border-radius) var(--border-radius);
+  padding: 10px 0;
 }
 
 #tree-diagram {
