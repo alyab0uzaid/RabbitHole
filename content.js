@@ -403,6 +403,16 @@ function createExpandedModal(data, nodeId = null) {
   const overlay = document.createElement('div');
   overlay.className = 'rabbithole-container';
   
+  // Add internal-nav class if we're continuing a session (not a new session)
+  if (!isNewSession) {
+    overlay.classList.add('internal-nav');
+    overlay.style.animation = "none";
+    overlay.style.transition = "none";
+    
+    // Also add the global style to prevent all animations
+    preventAllAnimations();
+  }
+  
   // Create the content wrapper for side-by-side layout
   const contentWrapper = document.createElement('div');
   contentWrapper.className = 'rabbithole-content-wrapper';
@@ -483,6 +493,9 @@ function createExpandedModal(data, nodeId = null) {
   
   // Define the node click handler function - this PRESERVES the tree during navigation
   window.treeNodeClickCallback = async function(nodeInfo, clickedNodeId) {
+    // Prevent all animations - do this first!
+    preventAllAnimations();
+    
     console.log("Tree node clicked:", nodeInfo);
     
     // Basic validation - avoid errors with null/undefined
@@ -538,23 +551,21 @@ function createExpandedModal(data, nodeId = null) {
         thumbnail.alt = nodeData.title;
       }
       
-      // Update tree visualization to reflect the active node (safely)
-      if (treeModule && treeVisualization) {
-        if (treeModule.renderTree) {
-          treeModule.renderTree(treeVisualization);
-        } else if (treeModule.generateTreeHTML) {
-          treeVisualization.innerHTML = treeModule.generateTreeHTML();
-          
-          // Re-setup click handlers since HTML was replaced (safely)
-          if (overlay) {
-            setTimeout(() => {
-              try {
-                treeModule.setupTreeNodeHandlers(overlay, window.treeNodeClickCallback);
-              } catch (err) {
-                console.error("Error setting up tree node handlers:", err);
-              }
-            }, 100);
-          }
+      // Update tree visualization to reflect the active node
+      if (treeModule && treeModule.renderTree) {
+        treeModule.renderTree(treeVisualization);
+      } else if (treeModule && treeModule.generateTreeHTML) {
+        treeVisualization.innerHTML = treeModule.generateTreeHTML();
+        
+        // Re-setup click handlers since HTML was replaced
+        if (overlay) {
+          setTimeout(() => {
+            try {
+              treeModule.setupTreeNodeHandlers(overlay, window.treeNodeClickCallback);
+            } catch (err) {
+              console.error("Error setting up tree node handlers:", err);
+            }
+          }, 100);
         }
       }
     } catch (error) {
@@ -1442,5 +1453,73 @@ function updateTreeVisualization(container) {
         }
       });
     }, 100);
+  }
+}
+
+/**
+ * Updates the navigation status to prevent animation
+ */
+function markAsInternalNavigation() {
+  console.log("Marking as internal navigation to prevent animation");
+  
+  // Look for the container
+  const container = document.querySelector('.rabbithole-container');
+  if (container) {
+    console.log("Found container, adding internal-nav class");
+    container.classList.add('internal-nav');
+    
+    // Force a style recalculation
+    void container.offsetWidth;
+    
+    // Also add the style directly for maximum compatibility
+    container.style.animation = "none";
+    container.style.transition = "none";
+  } else {
+    console.warn("Container not found when trying to mark as internal navigation");
+  }
+}
+
+/**
+ * Prevents all animations in the container and its children
+ */
+function preventAllAnimations() {
+  // Add a style tag to disable all animations
+  const styleTag = document.createElement('style');
+  styleTag.id = 'rabbithole-no-animations';
+  styleTag.textContent = `
+    .rabbithole-container,
+    .rabbithole-container * {
+      animation: none !important;
+      transition: none !important;
+    }
+  `;
+  document.head.appendChild(styleTag);
+  
+  // Apply styles directly to container elements
+  const container = document.querySelector('.rabbithole-container');
+  if (container) {
+    container.style.animation = "none";
+    container.style.transition = "none";
+    
+    // Apply to content wrapper
+    const wrapper = container.querySelector('.rabbithole-content-wrapper');
+    if (wrapper) {
+      wrapper.style.animation = "none";
+      wrapper.style.transition = "none";
+    }
+    
+    // Apply to modal
+    const modal = container.querySelector('.rabbithole-modal');
+    if (modal) {
+      modal.style.animation = "none";
+      modal.style.transition = "none";
+    }
+    
+    // Apply to tree container
+    const tree = container.querySelector('.rabbithole-tree-container');
+    if (tree) {
+      tree.style.animation = "none";
+      tree.style.transition = "none";
+    }
   }
 }
