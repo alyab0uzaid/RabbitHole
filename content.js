@@ -1,6 +1,6 @@
 // Add at the beginning of the file
 console.log("RabbitHole: Content script starting to load");
-
+//--
 // Global variables to track state
 let currentNodeId = 0;
 let isInitialized = false;
