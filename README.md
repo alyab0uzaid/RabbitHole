@@ -15,6 +15,10 @@ RabbitHole is a Chrome extension that transforms your web browsing experience by
 ### From Source (Developer Mode)
 
 1. Clone or download this repository
+   Open your terminal (or Git Bash) and run the following command to clone the repository:
+  ```bash
+  git clone https://github.com/alyab0uzaid/eHacks2025
+  ```
 2. Open Chrome and navigate to `chrome://extensions/`
 3. Enable "Developer mode" at the top right
 4. Click "Load unpacked" and select the directory containing this extension
