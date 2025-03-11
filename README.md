@@ -4,7 +4,10 @@ RabbitHole is a Chrome extension that transforms your web browsing experience by
 
 ![rabbitholedemov3](https://github.com/user-attachments/assets/11dbc744-c8c6-4332-b2c6-fa16e14cbe3e)
 
+![rabbitholedemov4](https://github.com/user-attachments/assets/82dcf534-9679-43dc-9b84-a35aa2306b34)
+
 ## Features
+
 
 - **Text Highlighting**: Highlight any text on a webpage that you want to learn more about.
 - **Wikipedia Integration**: If the highlighted text has a corresponding Wikipedia entry, it will be converted to a clickable link.
