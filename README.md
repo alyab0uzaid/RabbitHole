@@ -2,6 +2,8 @@
 
 RabbitHole is a Chrome extension that transforms your web browsing experience by seamlessly integrating Wikipedia information directly into web pages. It allows you to explore topics in depth without leaving the page you're on.
 
+![rabbitholedemov3](https://github.com/user-attachments/assets/11dbc744-c8c6-4332-b2c6-fa16e14cbe3e)
+
 ## Features
 
 - **Text Highlighting**: Highlight any text on a webpage that you want to learn more about.
